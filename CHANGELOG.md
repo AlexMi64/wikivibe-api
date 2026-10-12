@@ -36,6 +36,7 @@
 ### Three-language source publication
 
 - Added complete English, Russian and Simplified Chinese README versions and contribution guidance. Chinese uses natural conversational technical wording, not proficiency-certification claims.
+- Placed the complete Russian, English and Simplified Chinese texts directly in the main `README.md`, with Russian first and language-section navigation. Standalone localized README files remain available.
 - Reused `Preferences.language`, `L10n.t` and the existing string catalog. Account copy and status-menu actions update live; fleet integration-menu entries now propagate to existing notch controllers.
 - Completed the affected native regression: 16 tests across four suites, zero failures (`TEST SUCCEEDED`); the full imported test bundle compiled.
 - Observed English → Russian → Simplified Chinese through the actual language picker. Account labels and unavailable-data messages localized correctly; the Chinese status-menu Quit action terminated the app, and Chinese survived reopening. Verified the settings command and native notch integration/Quit entries in all three languages, including live changes on existing controllers. After temporarily keeping the notch visible, restored the original Russian / Bottom / Large / Show on hover settings.
