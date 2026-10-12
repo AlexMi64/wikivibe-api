@@ -61,8 +61,6 @@ struct WikiVibeAccountView: View {
             Picker(L10n.t("Visibility"), selection: $preferences.notchVisibility) {
                 ForEach(NotchVisibility.allCases) { visibility in Text(visibility.title).tag(visibility) }
             }
-            Text(L10n.t("Based on Codenotch · MIT · vinzdg and contributors"))
-                .font(.caption).foregroundStyle(.secondary)
         }
         .id(preferences.language)
         .padding(24)

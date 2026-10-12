@@ -4,13 +4,13 @@
 
 ## Русский
 
-Самостоятельный виджет для macOS на основе [Codenotch](https://github.com/vinzdg/codenotch). Приложение написано на Swift с использованием AppKit и SwiftUI.
+WikiVibe — приложение для macOS с виджетом у края экрана и меню в строке состояния.
 
 **Интеграция аккаунта заблокирована — BLOCKED.** Приложение собирается и запускается, но контракты авторизации настольного клиента и получения данных аккаунта ещё не подтверждены. Оно не показывает вымышленный баланс, не подменяет отсутствие данных нулём и не выдаёт открытие сайта авторизации за успешный вход.
 
 ### Что работает
 
-- Исходный виджет у края экрана, пункт в строке меню и окно аккаунта.
+- Виджет у края экрана, пункт в строке меню и окно аккаунта.
 - Настройка края экрана, размера и видимости с сохранением после перезапуска.
 - Русский, английский и упрощённый китайский интерфейс с выбором языка в приложении.
 - Открытие `https://auth.wikivibe.dev/` в системном браузере. Переход на сайт явно отделён от входа в приложение.
@@ -37,11 +37,11 @@ make run
 
 ### Запуск и конфиденциальность
 
-`Sources/App/AppDelegate.swift` запускает только интерфейс WikiVibe. Поиск аккаунтов сторонних сервисов, наблюдение за агентами, индексация локальных расходов, сервис связи с телефоном, миграция учётных данных и автоматические обновления не запускаются. Отрисовка виджета больше не обращается к исходному механизму обнаружения аккаунтов для расчёта расходов. Настройки Codenotch не импортируются; при создании настроек не читается конфигурация LM Studio и не переносятся старые ключи пользовательских API в Keychain.
+`Sources/App/AppDelegate.swift` запускает только интерфейс WikiVibe. Поиск аккаунтов сторонних сервисов, наблюдение за агентами, индексация локальных расходов, сервис связи с телефоном, миграция учётных данных и автоматические обновления не запускаются. Отрисовка не обращается к механизму обнаружения аккаунтов. При создании настроек не читается конфигурация LM Studio и не переносятся старые ключи пользовательских API в Keychain.
 
-Библиотека провайдеров исходного проекта сохранена: её типы используются нативными компонентами. Наличие этих исходников не означает работающий коннектор WikiVibe. Sparkle остаётся зависимостью для сборки сохранённого кода, но объект обновления не создаётся, а канал обновлений не настроен. Данные подписи, URL обновлений и открытый ключ исходного приложения удалены из конфигурации продукта.
+Наличие библиотек провайдеров в исходниках не означает работающий коннектор WikiVibe. Sparkle остаётся зависимостью сборки, но объект обновления не создаётся, а канал обновлений не настроен. Данные подписи, URL обновлений и открытый ключ не настроены.
 
-Продукт и схема Xcode: `WikiVibe`. Идентификатор приложения и подсистема журналирования: `dev.wikivibe.desktop`. Имя Swift-модуля `Codenotch` сохранено для совместимости с импортами существующих тестов и не является названием продукта.
+Продукт и схема Xcode: `WikiVibe`. Идентификатор приложения и подсистема журналирования: `dev.wikivibe.desktop`.
 
 На раннем этапе ревью обнаружило косвенный вызов поиска сторонних аккаунтов из отрисовки. До финальной проверки эту цепочку удалили. Отсутствие чтений метаданных аккаунтов или персональных данных при более раннем запуске не установлено; пользовательские файлы с учётными данными для выяснения этого не исследовались.
 
@@ -61,7 +61,7 @@ make run
 
 ### Проверки
 
-До языковых изменений успешно выполнены `make build` и 63 теста в 11 изолированных наборах для нативных компонентов, парсеров и состояния обновления. Скомпилирован весь импортированный тестовый модуль; полный набор сторонних провайдеров и проверок с реальными сервисами не запускался. Точная команда:
+До языковых изменений успешно выполнены `make build` и 63 теста в 11 изолированных наборах для нативных компонентов, парсеров и состояния обновления. Скомпилирован весь тестовый модуль; полный набор сторонних провайдеров и проверок с реальными сервисами не запускался. Точная команда:
 
 ```sh
 make test TEST_FLAGS='-only-testing:WikiVibeTests/NotchEdgeTests -only-testing:WikiVibeTests/NotchPlacementTests -only-testing:WikiVibeTests/NotchGeometryTests -only-testing:WikiVibeTests/NotchFleetReconcileTests -only-testing:WikiVibeTests/NotchFleetScopeTests -only-testing:WikiVibeTests/NotchVisibilityTests -only-testing:WikiVibeTests/NotchSizeTests -only-testing:WikiVibeTests/NotchPositionPersistenceTests -only-testing:WikiVibeTests/UpdaterOutcomeTests -only-testing:WikiVibeTests/MiniMaxUsageTests -only-testing:WikiVibeTests/OpenCodeUsageTests'
@@ -73,21 +73,21 @@ make test TEST_FLAGS='-only-testing:WikiVibeTests/NotchEdgeTests -only-testing:W
 
 Вход в реальный аккаунт, восстановление его сессии, получение баланса, платежи и списание inference-кредитов не выполнялись. Правила безопасной проверки описаны в [CONTRIBUTING.md](CONTRIBUTING.md), изменения — в [CHANGELOG.md](CHANGELOG.md).
 
-### Авторство и лицензии
+### Лицензии
 
-Основа импортирована из Codenotch, коммит `bcb28894d1514fef5a810595d64b44a3817c2076`. Исходная MIT [LICENSE](LICENSE) и сведения об авторстве сохранены. Точные копии лицензий Codenotch MIT и Zstandard BSD включены в ресурсы приложения вместе с уведомлениями для графических символов. Windows/Tauri и сайт исходного проекта не импортированы.
+Лицензия проекта — [MIT](LICENSE). Обязательные уведомления об авторских правах и лицензии зависимостей сохранены в репозитории и ресурсах приложения.
 
 Значок WikiVibe взят из локального изображения размером 256×256. Более крупные размеры иконки получены масштабированием, а не из оригинала высокого разрешения. Для публичного распространения бинарной сборки ещё нужны подтверждённые права на бренд и подходящий графический исходник.
 
 ## English
 
-A standalone native macOS widget based on [Codenotch](https://github.com/vinzdg/codenotch), built with Swift, AppKit and SwiftUI.
+WikiVibe is a macOS app with a screen-edge widget and a menu-bar entry.
 
 **Account integration is BLOCKED.** The native app builds and runs, but the desktop authentication and account-data contracts have not been confirmed. It does not display an invented balance, treat missing data as zero, or claim that opening the authentication website signs you in.
 
 ### What works
 
-- The original native notch, menu-bar entry and account window.
+- The screen-edge widget, menu-bar entry and account window.
 - Screen-edge, size and visibility controls, retained across restarts.
 - English, Russian and Simplified Chinese interface text, with an in-app language selector.
 - System-browser navigation to `https://auth.wikivibe.dev/`, explicitly separate from application sign-in.
@@ -114,13 +114,13 @@ Local builds are unsigned. No signed or notarized installer is provided, and no 
 
 ### Runtime and privacy
 
-`Sources/App/AppDelegate.swift` starts the WikiVibe surface only. It does not start third-party provider discovery, agent monitors, local cost indexing, phone-link services, credential migration or automatic updates. Native rendering no longer calls the upstream cost-account discovery layer. Existing Codenotch preferences are not imported, and preference initialization does not read LM Studio configuration or migrate legacy endpoint keys into Keychain.
+`Sources/App/AppDelegate.swift` starts the WikiVibe interface only. It does not start third-party provider discovery, agent monitors, local cost indexing, phone-link services, credential migration or automatic updates. Rendering does not call account discovery. Preference initialization does not read LM Studio configuration or migrate legacy endpoint keys into Keychain.
 
-The imported provider library remains in the source tree because the native components share its types. Its presence is not an active WikiVibe connector. Sparkle remains a build dependency of retained upstream code; the updater is not instantiated and no appcast is configured. Upstream signing identities, update-feed URLs and public signing keys have been removed from product configuration.
+Provider libraries in the source tree are not an active WikiVibe connector. Sparkle remains a build dependency, but the updater is not instantiated. No signing identity, update feed or public signing key is configured.
 
-Product and scheme: `WikiVibe`. Bundle identifier and logging subsystem: `dev.wikivibe.desktop`. The Swift module remains `Codenotch` for compatibility with existing test imports; this is not the product name.
+Product and scheme: `WikiVibe`. Bundle identifier and logging subsystem: `dev.wikivibe.desktop`.
 
-During early development, review found an indirect upstream discovery path in rendering. That path was removed before the final verification. Historical absence of account-metadata or PII reads in the earlier launch was not established; user credential files were not inspected to investigate it.
+During early development, review found an indirect account-discovery path in rendering. That path was removed before the final verification. Historical absence of account-metadata or PII reads in the earlier launch was not established; user credential files were not inspected to investigate it.
 
 ### Backend requirements
 
@@ -138,7 +138,7 @@ Inference API keys are not account-session tokens. The API-key-protected `/v1/us
 
 ### Verification
 
-The preceding implementation passed `make build` and 63 tests across 11 isolated native/parser/updater suites. The entire imported test bundle compiled; the full provider/live suite was not executed. The exact regression command was:
+The preceding implementation passed `make build` and 63 tests across 11 isolated native/parser/updater suites. The entire test bundle compiled; the full provider/live suite was not executed. The exact regression command was:
 
 ```sh
 make test TEST_FLAGS='-only-testing:WikiVibeTests/NotchEdgeTests -only-testing:WikiVibeTests/NotchPlacementTests -only-testing:WikiVibeTests/NotchGeometryTests -only-testing:WikiVibeTests/NotchFleetReconcileTests -only-testing:WikiVibeTests/NotchFleetScopeTests -only-testing:WikiVibeTests/NotchVisibilityTests -only-testing:WikiVibeTests/NotchSizeTests -only-testing:WikiVibeTests/NotchPositionPersistenceTests -only-testing:WikiVibeTests/UpdaterOutcomeTests -only-testing:WikiVibeTests/MiniMaxUsageTests -only-testing:WikiVibeTests/OpenCodeUsageTests'
@@ -150,21 +150,21 @@ The three-language update passed 16 affected native tests with zero failures. Th
 
 No real account sign-in, account-session restoration, balance request, payment or inference expenditure was performed. See [CONTRIBUTING.md](CONTRIBUTING.md) for safe local verification and [CHANGELOG.md](CHANGELOG.md) for changes.
 
-### Attribution
+### License
 
-Imported from Codenotch commit `bcb28894d1514fef5a810595d64b44a3817c2076`. The upstream MIT [LICENSE](LICENSE) and copyright are preserved. Exact Codenotch MIT and Zstandard BSD notices are included in application resources alongside glyph notices. Windows/Tauri and the upstream website were not imported.
+The project uses the [MIT license](LICENSE). Required copyright notices and dependency licenses are preserved in the repository and application resources.
 
 The WikiVibe icon came from a 256×256 local reference image. Larger app-icon sizes are upscaled, not high-resolution originals. Public binary distribution still requires confirmed brand rights and suitable source artwork.
 
 ## 简体中文
 
-这是一个独立的 macOS 原生小组件，基于 [Codenotch](https://github.com/vinzdg/codenotch)，使用 Swift、AppKit 和 SwiftUI 开发。
+WikiVibe 是一款 macOS 应用，提供屏幕边缘小组件和菜单栏入口。
 
 **账号接入目前受阻（BLOCKED）。** 应用能构建、能运行，但桌面端登录和账号数据的后端接口约定还没确认。它不会编造余额，不会把缺失数据当成零，也不会把打开登录网站当成登录成功。
 
 ### 现在能做什么
 
-- 使用原有的屏幕边缘小组件、菜单栏入口和账号窗口。
+- 使用屏幕边缘小组件、菜单栏入口和账号窗口。
 - 调整位置、大小和显示方式，重启后保留设置。
 - 在应用内选择 English、Русский 或简体中文。
 - 通过系统浏览器打开 `https://auth.wikivibe.dev/`。这只是访问网站，不是登录桌面应用。
@@ -191,13 +191,13 @@ make run
 
 ### 启动行为和隐私
 
-`Sources/App/AppDelegate.swift` 只启动 WikiVibe 的原生界面，不会启动其他服务的账号发现、代理监控、本地费用索引、手机连接服务、凭据迁移或自动更新。小组件渲染已不再调用上游费用模块中的账号发现逻辑。应用不导入 Codenotch 的旧设置；初始化设置时，也不会读取 LM Studio 配置或把旧的自定义接口密钥迁移到 Keychain。
+`Sources/App/AppDelegate.swift` 只启动 WikiVibe 的界面，不会启动其他服务的账号发现、代理监控、本地费用索引、手机连接服务、凭据迁移或自动更新。渲染不会调用账号发现逻辑。初始化设置时，也不会读取 LM Studio 配置或把旧的自定义接口密钥迁移到 Keychain。
 
-仓库里仍保留上游提供方库，因为原生组件会用到其中的类型。保留源码不等于已经接通 WikiVibe。Sparkle 仍是部分上游代码的构建依赖，但更新器不会创建，也没有配置更新源。产品配置已移除上游签名身份、更新地址和公开签名密钥。
+源码中保留提供方库不等于已经接通 WikiVibe。Sparkle 仍是构建依赖，但更新器不会创建，也没有配置更新源、签名身份、更新地址或公开签名密钥。
 
-产品和 Xcode scheme 都叫 `WikiVibe`。应用标识与日志子系统是 `dev.wikivibe.desktop`。为兼容现有测试导入，Swift 模块名仍为 `Codenotch`；它不是产品名称。
+产品和 Xcode scheme 都叫 `WikiVibe`。应用标识与日志子系统是 `dev.wikivibe.desktop`。
 
-早期开发时，代码审查发现渲染路径会间接触发上游账号发现。最终验证前，这条路径已删除。此前那次启动是否读取过账号元数据或个人信息，尚未确定；没有为调查此事去查看用户的凭据文件。
+早期开发时，代码审查发现渲染路径会间接触发账号发现。最终验证前，这条路径已删除。此前那次启动是否读取过账号元数据或个人信息，尚未确定；没有为调查此事去查看用户的凭据文件。
 
 ### 后端还需要确认什么
 
@@ -215,7 +215,7 @@ make run
 
 ### 已做的验证
 
-在语言调整前，`make build` 成功，11 组独立测试共 63 项通过。整个导入的测试模块都完成了编译，但没有执行完整的第三方提供方测试或真实服务测试。命令如下：
+在语言调整前，`make build` 成功，11 组独立测试共 63 项通过。整个测试模块都完成了编译，但没有执行完整的第三方提供方测试或真实服务测试。命令如下：
 
 ```sh
 make test TEST_FLAGS='-only-testing:WikiVibeTests/NotchEdgeTests -only-testing:WikiVibeTests/NotchPlacementTests -only-testing:WikiVibeTests/NotchGeometryTests -only-testing:WikiVibeTests/NotchFleetReconcileTests -only-testing:WikiVibeTests/NotchFleetScopeTests -only-testing:WikiVibeTests/NotchVisibilityTests -only-testing:WikiVibeTests/NotchSizeTests -only-testing:WikiVibeTests/NotchPositionPersistenceTests -only-testing:WikiVibeTests/UpdaterOutcomeTests -only-testing:WikiVibeTests/MiniMaxUsageTests -only-testing:WikiVibeTests/OpenCodeUsageTests'
@@ -227,8 +227,8 @@ make test TEST_FLAGS='-only-testing:WikiVibeTests/NotchEdgeTests -only-testing:W
 
 没有进行真实账号登录、会话恢复、余额请求、付款或推理额度消耗。安全验证规则见 [CONTRIBUTING.md](CONTRIBUTING.md)，变更记录见 [CHANGELOG.md](CHANGELOG.md)。
 
-### 来源和许可证
+### 许可证
 
-源码基于 Codenotch 提交 `bcb28894d1514fef5a810595d64b44a3817c2076`。原 MIT [LICENSE](LICENSE) 和版权信息均已保留。应用资源中包含 Codenotch MIT、Zstandard BSD 许可证的完整副本，以及图形标记的许可说明。没有导入 Windows/Tauri 版本或上游网站。
+项目采用 [MIT 许可证](LICENSE)。必需的版权声明和依赖许可证保留在仓库及应用资源中。
 
 WikiVibe 图标来自一张 256×256 的本地参考图。较大尺寸是放大生成的，不是高分辨率原图。公开分发二进制版本前，仍需确认品牌使用权，并准备合适的图标源文件。

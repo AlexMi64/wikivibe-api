@@ -15,15 +15,15 @@ make run
 make test TEST_FLAGS='-only-testing:WikiVibeTests/NotchEdgeTests -only-testing:WikiVibeTests/NotchFleetScopeTests'
 ```
 
-`make gen` generates the Xcode project. Unsigned local output lives under `build/DerivedData`; it is not a notarized distribution. The Swift module remains `Codenotch`; the product, scheme and bundle identity are WikiVibe. The Makefile has no publication or deployment targets.
+`make gen` generates the Xcode project. Unsigned local output lives under `build/DerivedData`; it is not a notarized distribution. The product, scheme and bundle identity are WikiVibe. The Makefile has no publication or deployment targets.
 
 ### Credentials and backend work
 
-`Sources/App/AppDelegate.swift` owns startup. Retain the native notch architecture and explicit unavailable-account state until a desktop contract is confirmed. Do not enable third-party provider discovery, agent-log indexing, phone listeners, credential migration or upstream update feeds as part of WikiVibe integration.
+`Sources/App/AppDelegate.swift` owns startup. Retain the native notch architecture and explicit unavailable-account state until a desktop contract is confirmed. Do not enable third-party provider discovery, agent-log indexing, phone listeners, credential migration or update feeds as part of WikiVibe integration.
 
 Do not read another application's credentials during verification. Never print tokens, cookies, keys or PII. Account-session tokens and inference API keys are separate credentials. Once the backend contract exists, store desktop session credentials only in macOS Keychain. Opening the browser is not evidence of authentication.
 
-Read [the backend specification](CONNECTORS_FOR_ALEXEY.en.md) before implementing a connector. Proposals are not confirmed API contracts. Isolated parser fixtures and opt-in live checks belong to the imported library; they do not prove WikiVibe integration. Do not enable `CODENOTCH_*_LIVE` flags or use personal credentials to run tests.
+Read [the backend specification](CONNECTORS_FOR_ALEXEY.en.md) before implementing a connector. Proposals are not confirmed API contracts. Isolated parser fixtures and opt-in live checks do not prove WikiVibe integration. Do not enable live-test flags or use personal credentials to run tests.
 
 ### Changes and publication
 
@@ -44,15 +44,15 @@ Inspect app-owned logs only; redact sensitive data before sharing:
 
 ### Локальная разработка
 
-Нужны macOS 15+, Xcode и XcodeGen. Команды сборки и изолированных тестов приведены выше. `make gen` создаёт проект Xcode. Неподписанная локальная сборка находится в `build/DerivedData` и не предназначена для распространения как проверенный Apple установщик. Имя Swift-модуля остаётся `Codenotch`; продукт, схема Xcode и идентификатор приложения относятся к WikiVibe. Команд публикации и развёртывания в Makefile нет.
+Нужны macOS 15+, Xcode и XcodeGen. Команды сборки и изолированных тестов приведены выше. `make gen` создаёт проект Xcode. Неподписанная локальная сборка находится в `build/DerivedData` и не предназначена для распространения как проверенный Apple установщик. Продукт, схема Xcode и идентификатор приложения относятся к WikiVibe. Команд публикации и развёртывания в Makefile нет.
 
 ### Учётные данные и серверная интеграция
 
-Запуском управляет `Sources/App/AppDelegate.swift`. До подтверждения контракта настольного клиента сохраняйте исходную архитектуру виджета и явное состояние недоступной интеграции. Не подключайте поиск сторонних аккаунтов, индексацию журналов агентов, сервис связи с телефоном, миграцию учётных данных или каналы обновлений исходного проекта.
+Запуском управляет `Sources/App/AppDelegate.swift`. До подтверждения контракта настольного клиента сохраняйте архитектуру виджета и явное состояние недоступной интеграции. Не подключайте поиск сторонних аккаунтов, индексацию журналов агентов, сервис связи с телефоном, миграцию учётных данных или каналы обновлений.
 
 При проверке не читайте учётные данные других приложений. Не выводите токены, cookies, ключи и персональные данные. Токены сессии аккаунта и ключи inference API — разные сущности. После подтверждения серверного контракта храните сессию настольного клиента только в macOS Keychain. Открытие браузера не доказывает успешный вход.
 
-Перед реализацией коннектора прочитайте [серверную спецификацию](CONNECTORS_FOR_ALEXEY.md). Предложения не являются подтверждёнными API-контрактами. Изолированные данные для парсеров и проверки с реальными сервисами относятся к импортированной библиотеке и не доказывают интеграцию WikiVibe. Не включайте `CODENOTCH_*_LIVE` и не используйте личные учётные данные в тестах.
+Перед реализацией коннектора прочитайте [серверную спецификацию](CONNECTORS_FOR_ALEXEY.md). Предложения не являются подтверждёнными API-контрактами. Изолированные данные для парсеров и проверки с реальными сервисами не доказывают интеграцию WikiVibe. Не включайте флаги тестов с реальными сервисами и не используйте личные учётные данные в тестах.
 
 ### Изменения и публикация
 
@@ -69,15 +69,15 @@ Inspect app-owned logs only; redact sensitive data before sharing:
 
 ### 本地开发
 
-需要 macOS 15 或更新版本、Xcode 和 XcodeGen。构建、运行和独立测试命令见上文。`make gen` 生成 Xcode 项目；本地不签名的构建产物位于 `build/DerivedData`，不是经过 Apple 公证的发行版。Swift 模块仍叫 `Codenotch`，产品、scheme 和应用标识则使用 WikiVibe。Makefile 没有发布或部署目标。
+需要 macOS 15 或更新版本、Xcode 和 XcodeGen。构建、运行和独立测试命令见上文。`make gen` 生成 Xcode 项目；本地不签名的构建产物位于 `build/DerivedData`，不是经过 Apple 公证的发行版。产品、scheme 和应用标识使用 WikiVibe。Makefile 没有发布或部署目标。
 
 ### 凭据和后端接入
 
-`Sources/App/AppDelegate.swift` 负责启动。桌面接口约定确认前，保留原生小组件架构和明确的接入不可用状态。不要启用第三方账号发现、代理日志索引、手机连接服务、凭据迁移或上游更新源。
+`Sources/App/AppDelegate.swift` 负责启动。桌面接口约定确认前，保留原生小组件架构和明确的接入不可用状态。不要启用第三方账号发现、代理日志索引、手机连接服务、凭据迁移或更新源。
 
 验证时不要读取其他应用的凭据，也不要使用其他人的账号。不要输出令牌、cookies、密钥或个人信息。账号会话令牌和推理 API 密钥必须分开。后端约定确认后，桌面会话凭据只能放在 macOS Keychain 中。打开浏览器不代表登录成功。
 
-实现连接器前，先读[后端规范](CONNECTORS_FOR_ALEXEY.zh-CN.md)。建议方案不是已确认的 API。导入库中的解析测试数据和真实服务检查不能证明 WikiVibe 已接通。不要启用 `CODENOTCH_*_LIVE`，也不要用个人凭据运行测试。
+实现连接器前，先读[后端规范](CONNECTORS_FOR_ALEXEY.zh-CN.md)。建议方案不是已确认的 API。解析测试数据和真实服务检查不能证明 WikiVibe 已接通。不要启用真实服务测试开关，也不要用个人凭据运行测试。
 
 ### 修改和发布
 

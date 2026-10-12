@@ -2,13 +2,13 @@
 
 [English](README.md) · [Русский](README.ru.md) · [简体中文](README.zh-CN.md)
 
-这是一个独立的 macOS 原生小组件，基于 [Codenotch](https://github.com/vinzdg/codenotch)，使用 Swift、AppKit 和 SwiftUI 开发。
+WikiVibe 是一款 macOS 应用，提供屏幕边缘小组件和菜单栏入口。
 
 **账号接入目前受阻（BLOCKED）。** 应用能构建、能运行，但桌面端登录和账号数据的后端接口约定还没确认。它不会编造余额，不会把缺失数据当成零，也不会把打开登录网站当成登录成功。
 
 ## 现在能做什么
 
-- 使用原有的屏幕边缘小组件、菜单栏入口和账号窗口。
+- 使用屏幕边缘小组件、菜单栏入口和账号窗口。
 - 调整位置、大小和显示方式，重启后保留设置。
 - 在应用内选择 English、Русский 或简体中文。
 - 通过系统浏览器打开 `https://auth.wikivibe.dev/`。这只是访问网站，不是登录桌面应用。
@@ -35,13 +35,13 @@ make run
 
 ## 启动行为和隐私
 
-`Sources/App/AppDelegate.swift` 只启动 WikiVibe 的原生界面，不会启动其他服务的账号发现、代理监控、本地费用索引、手机连接服务、凭据迁移或自动更新。小组件渲染已不再调用上游费用模块中的账号发现逻辑。应用不导入 Codenotch 的旧设置；初始化设置时，也不会读取 LM Studio 配置或把旧的自定义接口密钥迁移到 Keychain。
+`Sources/App/AppDelegate.swift` 只启动 WikiVibe 的界面，不会启动其他服务的账号发现、代理监控、本地费用索引、手机连接服务、凭据迁移或自动更新。渲染不会调用账号发现逻辑。初始化设置时，也不会读取 LM Studio 配置或把旧的自定义接口密钥迁移到 Keychain。
 
-仓库里仍保留上游提供方库，因为原生组件会用到其中的类型。保留源码不等于已经接通 WikiVibe。Sparkle 仍是部分上游代码的构建依赖，但更新器不会创建，也没有配置更新源。产品配置已移除上游签名身份、更新地址和公开签名密钥。
+源码中保留提供方库不等于已经接通 WikiVibe。Sparkle 仍是构建依赖，但更新器不会创建，也没有配置更新源、签名身份、更新地址或公开签名密钥。
 
-产品和 Xcode scheme 都叫 `WikiVibe`。应用标识与日志子系统是 `dev.wikivibe.desktop`。为兼容现有测试导入，Swift 模块名仍为 `Codenotch`；它不是产品名称。
+产品和 Xcode scheme 都叫 `WikiVibe`。应用标识与日志子系统是 `dev.wikivibe.desktop`。
 
-早期开发时，代码审查发现渲染路径会间接触发上游账号发现。最终验证前，这条路径已删除。此前那次启动是否读取过账号元数据或个人信息，尚未确定；没有为调查此事去查看用户的凭据文件。
+早期开发时，代码审查发现渲染路径会间接触发账号发现。最终验证前，这条路径已删除。此前那次启动是否读取过账号元数据或个人信息，尚未确定；没有为调查此事去查看用户的凭据文件。
 
 ## 后端还需要确认什么
 
@@ -59,7 +59,7 @@ make run
 
 ## 已做的验证
 
-在语言调整前，`make build` 成功，11 组独立测试共 63 项通过。整个导入的测试模块都完成了编译，但没有执行完整的第三方提供方测试或真实服务测试。命令如下：
+在语言调整前，`make build` 成功，11 组独立测试共 63 项通过。整个测试模块都完成了编译，但没有执行完整的第三方提供方测试或真实服务测试。命令如下：
 
 ```sh
 make test TEST_FLAGS='-only-testing:WikiVibeTests/NotchEdgeTests -only-testing:WikiVibeTests/NotchPlacementTests -only-testing:WikiVibeTests/NotchGeometryTests -only-testing:WikiVibeTests/NotchFleetReconcileTests -only-testing:WikiVibeTests/NotchFleetScopeTests -only-testing:WikiVibeTests/NotchVisibilityTests -only-testing:WikiVibeTests/NotchSizeTests -only-testing:WikiVibeTests/NotchPositionPersistenceTests -only-testing:WikiVibeTests/UpdaterOutcomeTests -only-testing:WikiVibeTests/MiniMaxUsageTests -only-testing:WikiVibeTests/OpenCodeUsageTests'
@@ -71,8 +71,8 @@ make test TEST_FLAGS='-only-testing:WikiVibeTests/NotchEdgeTests -only-testing:W
 
 没有进行真实账号登录、会话恢复、余额请求、付款或推理额度消耗。安全验证规则见 [CONTRIBUTING.md](CONTRIBUTING.md)，变更记录见 [CHANGELOG.md](CHANGELOG.md)。
 
-## 来源和许可证
+## 许可证
 
-源码基于 Codenotch 提交 `bcb28894d1514fef5a810595d64b44a3817c2076`。原 MIT [LICENSE](LICENSE) 和版权信息均已保留。应用资源中包含 Codenotch MIT、Zstandard BSD 许可证的完整副本，以及图形标记的许可说明。没有导入 Windows/Tauri 版本或上游网站。
+项目采用 [MIT 许可证](LICENSE)。必需的版权声明和依赖许可证保留在仓库及应用资源中。
 
 WikiVibe 图标来自一张 256×256 的本地参考图。较大尺寸是放大生成的，不是高分辨率原图。公开分发二进制版本前，仍需确认品牌使用权，并准备合适的图标源文件。
