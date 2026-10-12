@@ -1,0 +1,165 @@
+import Foundation
+
+enum ProviderKind: Equatable {
+    case usage
+    case localRuntime
+}
+
+/// How recent a reading has to be to answer a fetch.
+///
+/// Several providers hold a cheaper source that is older than a live one:
+/// Claude Desktop's cache is a file somebody else writes, and reusing it for
+/// half an hour is right while nothing is being spent. It is wrong while a
+/// session is running — that is precisely when the number moves, eleven points
+/// in fifteen minutes on the day `desktopFreshness` was measured — and wrong
+/// the moment somebody opens the menu to look. Only the caller knows which of
+/// those is happening, so the caller says, and each provider decides what it
+/// can do about it.
+enum UsageFreshness: Equatable {
+    /// Whatever the provider's ordinary sources allow, cache included. The
+    /// schedule's default: a number nobody is watching and nothing is moving.
+    case standard
+    /// Old enough to be interesting is not good enough. A provider honouring
+    /// this drops a cached reading it would otherwise have served and asks a
+    /// source that can answer for right now.
+    case live
+    /// Nothing held, at any age. The source itself, and a request spent on it.
+    ///
+    /// What **Refresh now** and a click on a ring ask for, and what a look asks
+    /// for when "Ask the provider every time you look" is on. Strictly more
+    /// expensive than `.live` and not strictly better: a provider that rate
+    /// limits answers a request too many with a 429, and its back-off then holds
+    /// an *older* number than the cache would have. So it is what somebody asks
+    /// for, never what the schedule decides on its own.
+    ///
+    /// It may not leave a ring emptier than `.standard` would have. Where no
+    /// live source can answer, a provider honouring this falls back to the
+    /// reading it was holding rather than failing the refresh — see
+    /// `ClaudeOAuthProvider.fetchSnapshot(freshness:)`.
+    case fromSource
+}
+
+/// One source of usage numbers. Each adapter declares how trustworthy it is,
+/// and the UI never dresses a derived number up as an official one.
+protocol UsageProvider {
+    var kind: ProviderKind { get }
+    var id: String { get }
+    /// Enough to draw the cell even when a fetch has never succeeded.
+    var displayName: String { get }
+    var glyph: ProviderGlyph { get }
+    func fetchSnapshot() async throws -> ProviderSnapshot
+    /// The same reading, with a say in how old it may be.
+    ///
+    /// A protocol requirement with a default below, not an extension member
+    /// alone, for the reason spelled out above `account()`: the store holds
+    /// providers as `any UsageProvider`, and a call that resolved statically
+    /// would reach every provider's default and none of their overrides — so
+    /// `.live` would be accepted everywhere and honoured nowhere.
+    func fetchSnapshot(freshness: UsageFreshness) async throws -> ProviderSnapshot
+    /// Whose readings these are. Declared here rather than only in an extension:
+    /// a method that exists solely in a protocol extension is dispatched
+    /// *statically*, so calling it through `any UsageProvider` would always land
+    /// on the default and never on the implementation — which is exactly what
+    /// happened, and it failed silently by reporting every account as absent.
+    func account() -> ProviderAccount?
+    /// Where the user goes to sign in, when there is no account to read. A
+    /// requirement for the same reason `account()` is.
+    var signInRoute: SignInRoute { get }
+    /// Discard whatever credential *this app* holds for the provider.
+    ///
+    /// For a borrowed credential there is nothing here to discard — the session
+    /// belongs to Claude Code or Cursor, and ending it is their business, not
+    /// ours. For a session Codenotch created itself (`WebSessionProvider`) this
+    /// is a real logout. A requirement, not an extension member, for the reason
+    /// spelled out above `account()`.
+    func signOut() async
+    /// Open whatever sign-in this provider can present.
+    ///
+    /// Only a `WebSessionProvider` has a modal of its own to show — it owns the
+    /// session, so it can create one. Everyone else borrows a credential, and
+    /// the nearest thing is launching the app that holds it, which is why the
+    /// route matters as much as this call. A requirement, not an extension
+    /// member, for the reason spelled out above `account()`.
+    func presentSignIn()
+    /// Open the provider's account-switch flow. Providers that do not own a
+    /// session have no special switching UI, so their normal sign-in action is
+    /// the honest fallback.
+    func presentAccountSwitch()
+    /// Drop any credential held in memory, so the next read goes to the
+    /// keychain for real.
+    ///
+    /// Without this, "ask me again" does nothing whenever a valid token is
+    /// still cached: the read is served from memory, macOS is never consulted,
+    /// and no prompt appears. A requirement, not an extension member, for the
+    /// reason spelled out above `account()`.
+    func forgetCachedCredential()
+    /// Whether this provider should keep a cell or placeholder in the notch when
+    /// its account or daemon is unavailable. Most providers default to `true`
+    /// so users see sign-in guidance; local daemon providers return `false`
+    /// so an inactive service does not take up a ring in the notch.
+    var isVisibleWhenAbsent: Bool { get }
+    /// Optional custom icon image filename saved on disk.
+    var customIconFilename: String? { get }
+}
+
+extension UsageProvider {
+    /// Most providers hold nothing older than their last fetch, so there is
+    /// nothing for `.live` to skip past and one fetch answers both demands.
+    func fetchSnapshot(freshness: UsageFreshness) async throws -> ProviderSnapshot {
+        try await fetchSnapshot()
+    }
+
+    func presentAccountSwitch() { presentSignIn() }
+
+    var isVisibleWhenAbsent: Bool { true }
+
+    var customIconFilename: String? { nil }
+}
+
+extension UsageProvider {
+    var kind: ProviderKind { .usage }
+}
+
+enum UsageProviderError: Error {
+    /// No usable credential — the user has to sign in again.
+    case needsAuth
+    /// The credential is there, and macOS refused to hand it over — the
+    /// keychain prompt was declined. Not the same as being signed out: telling
+    /// someone to sign in, when they are signed in and merely pressed Deny,
+    /// sends them to fix something that is not broken.
+    case accessDenied
+    /// The credential is there but has expired, and the app that owns it will
+    /// refresh it the next time it runs. Not the same as being signed out: the
+    /// last reading is still true, just old.
+    case credentialExpired
+    /// The owning app emptied its own stored credential — the keychain item is
+    /// still there, with an empty token in it.
+    ///
+    /// Not the same as `needsAuth`, and the difference decides whether the last
+    /// reading survives. `needsAuth` means nobody ever signed in here, so there
+    /// is nothing to show. This means somebody *was* signed in, worked, and had
+    /// the credential taken out from under them. Claude Code does exactly that
+    /// to every profile at once after it auto-updates and then wakes from sleep
+    /// (anthropics/claude-code#19456, closed as not planned). The numbers taken
+    /// before that happened are still the truth about the account.
+    case signedOutByOwner
+    /// The fetch never came back inside the store's deadline. Says nothing
+    /// about the account — the usual cause is a keychain read sitting behind an
+    /// authorization prompt nobody has answered yet.
+    case timedOut
+    /// The endpoint answered, but not with anything we understand.
+    case badResponse(status: Int)
+    /// The endpoint answered with its own named business failure — QianwenAI's
+    /// gateway reports these under HTTP 200, `Bad Request` among them. The name
+    /// is the useful half of the answer, and `badResponse(status:)` cannot carry
+    /// it: every one of these used to be reported as "HTTP 0", which named
+    /// nothing and sent nobody anywhere. A signed-out session is a name too, and
+    /// that one goes to `needsAuth` instead.
+    case apiError(String)
+    /// Asked to slow down. Carries the server's own retry hint when it gave one.
+    case rateLimited(retryAfter: TimeInterval)
+    /// The account is readable, but there is genuinely no quota being counted —
+    /// Cursor's free plan reports an included limit of zero. Not an error, and
+    /// it must not be shown as one.
+    case nothingMetered(String)
+}

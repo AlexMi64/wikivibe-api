@@ -1,0 +1,129 @@
+name: WikiVibe
+options:
+  bundleIdPrefix: dev.wikivibe
+  deploymentTarget:
+    macOS: "15.0"
+  createIntermediateGroups: true
+  defaultLocalization: en
+
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    SWIFT_STRICT_CONCURRENCY: minimal
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    # Local builds remain unsigned until the product distribution identity is
+    # supplied by the owner of the WikiVibe application bundle.
+    CODE_SIGN_IDENTITY: "-"
+    CODE_SIGN_STYLE: Manual
+    CODE_SIGNING_REQUIRED: "NO"
+    CODE_SIGNING_ALLOWED: "NO"
+    ENABLE_HARDENED_RUNTIME: "YES"
+    ENABLE_APP_SANDBOX: "NO"
+    ENABLE_USER_SCRIPT_SANDBOXING: "NO"
+
+packages:
+  SwiftNIO:
+    url: https://github.com/apple/swift-nio
+    from: "2.102.0"
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    from: "2.6.0"
+
+targets:
+  WikiVibe:
+    type: application
+    platform: macOS
+    sources:
+      - path: Sources
+        excludes:
+          # Notes for whoever next re-generates the vendored decoder. Left in the
+          # navigator beside the code it describes, but Xcode would otherwise
+          # copy any unrecognised file into the app bundle's Resources, and a
+          # developer README has no business shipping to users.
+          - "Vendor/**/README.md"
+    dependencies:
+      - package: Sparkle
+      - package: SwiftNIO
+        product: NIOHTTP1
+      - package: SwiftNIO
+        product: NIOPosix
+    info:
+      path: Sources/Info.plist
+      properties:
+        # Deliberately a normal Dock app, not an `LSUIElement` agent. The
+        # notch is ambient, but the *app* still has to be findable: without a
+        # Dock tile there is nothing to click to open it, nothing in Cmd-Tab,
+        # and no obvious way to reach settings or quit.
+        CFBundleName: WikiVibe
+        CFBundleDisplayName: WikiVibe
+        CFBundleDevelopmentRegion: en
+        CFBundleLocalizations:
+          - en
+          - fr
+          - de
+          - id
+          - ja
+          - ko
+          - pt-BR
+          - ru
+          - zh-Hans
+          - zh-Hant
+          - uk
+          - uz
+          - tr
+        LSMinimumSystemVersion: "15.0"
+        # Sources/Info.plist is *generated* from this block, so editing that
+        # file directly is undone by the next `make gen`. Pointing both at the
+        # build settings keeps one place to bump.
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        # HTTP endpoints on Tailscale use shared address space. Keep the ATS
+        # exception scoped to that range; other destinations retain defaults.
+        NSAppTransportSecurity:
+          NSExceptionDomains:
+            "100.64.0.0/10":
+              NSExceptionAllowsInsecureHTTPLoads: true
+        NSLocalNetworkUsageDescription: "WikiVibe uses the local network only when an enabled provider requires it."
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.wikivibe.desktop
+        # Preserve the imported Swift module name and its upstream test imports;
+        # product, scheme and bundle identity are WikiVibe.
+        PRODUCT_MODULE_NAME: Codenotch
+        GENERATE_INFOPLIST_FILE: "NO"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        SWIFT_EMIT_LOC_STRINGS: "YES"
+        DEVELOPMENT_LANGUAGE: en
+        # The only C in the project is the vendored Zstandard decoder, and this
+        # is how Swift sees it. It is needed because Claude Desktop's HTTP cache
+        # stores bodies with `content-encoding: zstd` and macOS ships no zstd
+        # anywhere a signed, notarized app can reach — see
+        # Sources/Vendor/zstd/README.md. Delete this line and that directory
+        # together if the Desktop source is ever dropped.
+        SWIFT_OBJC_BRIDGING_HEADER: Sources/Codenotch-Bridging-Header.h
+
+  WikiVibeTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: Tests
+    dependencies:
+      - target: WikiVibe
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.wikivibe.desktop.tests
+        GENERATE_INFOPLIST_FILE: "YES"
+
+schemes:
+  WikiVibe:
+    build:
+      targets:
+        WikiVibe: all
+        WikiVibeTests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - WikiVibeTests
