@@ -11,6 +11,7 @@ protocol WikiVibeAuthAPIInterface: Sendable {
     func exchange(code: String, verifier: String, redirectURI: String) async throws -> WikiVibeSession
     func refresh(using session: WikiVibeSession) async throws -> WikiVibeSession
     func account(for session: WikiVibeSession) async throws -> WikiVibeAccount
+    func wallet(for session: WikiVibeSession) async throws -> WikiVibeWallet
     func revoke(refreshToken: String) async
 }
 
@@ -60,6 +61,32 @@ struct WikiVibeAuthAPI: WikiVibeAuthAPIInterface {
 
     private struct MePayload: Decodable {
         let user: User
+    }
+
+    /// `/user/profile`. Only the money fields are declared: the response carries
+    /// much more (identity bindings, notification settings), and decoding fields
+    /// the app never shows would mean holding them in memory for no reason.
+    private struct ProfilePayload: Decodable {
+        let balance: Double?
+        let bonusBalance: Double?
+        let frozenBalance: Double?
+
+        enum CodingKeys: String, CodingKey {
+            case balance
+            case bonusBalance = "bonus_balance"
+            case frozenBalance = "frozen_balance"
+        }
+    }
+
+    /// `/settings/public`. The unit is an operator setting, not a constant.
+    private struct PublicSettingsPayload: Decodable {
+        let balanceUnitName: String?
+        let balanceUnitSymbol: String?
+
+        enum CodingKeys: String, CodingKey {
+            case balanceUnitName = "balance_unit_name"
+            case balanceUnitSymbol = "balance_unit_symbol"
+        }
     }
 
     private struct User: Decodable {
@@ -169,6 +196,34 @@ struct WikiVibeAuthAPI: WikiVibeAuthAPIInterface {
 
     // MARK: - Account
 
+    /// The account's money, in the server's own unit.
+    ///
+    /// Two calls, because the amount and its unit come from different places:
+    /// `/user/profile` needs the session, `/settings/public` does not. The unit
+    /// is fetched first so a balance is never rendered in a guessed currency,
+    /// and a missing `balance` is reported rather than read as zero — the
+    /// account has money; the app simply did not get it.
+    func wallet(for session: WikiVibeSession) async throws -> WikiVibeWallet {
+        let settings: PublicSettingsPayload = try await get(
+            path: WikiVibeAuthContract.publicSettingsPath,
+            token: nil
+        )
+        let profile: ProfilePayload = try await get(
+            path: WikiVibeAuthContract.profilePath,
+            token: session.accessToken
+        )
+        guard let balance = profile.balance else {
+            throw WikiVibeAuthError.balanceUnavailable("the server reported no balance")
+        }
+        return WikiVibeWallet(
+            regular: balance,
+            bonus: profile.bonusBalance,
+            frozen: profile.frozenBalance,
+            currencyName: settings.balanceUnitName ?? "",
+            currencySymbol: settings.balanceUnitSymbol ?? ""
+        )
+    }
+
     /// Confirm the account a session belongs to.
     ///
     /// Used after restore, where the only local evidence is a keychain item:
@@ -195,10 +250,10 @@ struct WikiVibeAuthAPI: WikiVibeAuthAPIInterface {
 
     // MARK: - Transport
 
-    private func get<Payload: Decodable>(path: String, token: String) async throws -> Payload {
+    private func get<Payload: Decodable>(path: String, token: String?) async throws -> Payload {
         var request = URLRequest(url: WikiVibeAuthContract.api.appendingPathComponent(path))
         request.httpMethod = "GET"
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        if let token { request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         return try await send(request)
     }

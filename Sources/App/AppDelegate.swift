@@ -81,16 +81,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         installMenu()
     }
 
-    /// The one row this app draws. It reports the account, not usage: reading
-    /// the wallet needs a contract this app does not have, and a number it
-    /// could not verify would be worse than no number.
+    /// The one row this app draws. It reports the account and, when the server
+    /// has answered, its balance: the money is a real reading with a real unit,
+    /// and the row's number is the regular balance, not a fabricated fraction.
     private var accountSnapshot: ProviderSnapshot {
         let status: ProviderStatus
         let plan: String?
+        var windows: [LimitWindow] = []
         switch auth.state {
         case .signedIn(let account):
             status = .ok
             plan = account.displayName
+            if let wallet = auth.wallet {
+                // A count row: the balance is an amount, not a fraction of a
+                // limit, so it renders without a bar that would imply a ceiling
+                // the server never stated.
+                windows = [LimitWindow(
+                    id: "balance",
+                    label: L10n.t("Balance"),
+                    usedText: wallet.regularText,
+                    detail: wallet.bonusText.map { L10n.t("Bonus") + " " + $0 }
+                )]
+            }
         case .signingIn:
             status = .stale(since: Date())
             plan = L10n.t("Waiting for the browser…")
@@ -105,7 +117,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             id: "wikivibe", displayName: "WikiVibe", glyph: .wikivibe,
             fidelity: .official,
             status: status,
-            windows: [],
+            windows: windows,
             plan: plan
         )
     }
@@ -168,6 +180,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // what lets the wait end cleanly if termination is not immediate.
         let listener = auth
         Task { await listener.cancelSignIn() }
+        auth.stopWalletPolling()
         fleet?.stop()
         if let statusItem { NSStatusBar.system.removeStatusItem(statusItem) }
     }

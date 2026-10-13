@@ -29,6 +29,19 @@ enum WikiVibeAuthContract {
     static let refreshPath = "/api/v1/auth/refresh"
     static let logoutPath = "/api/v1/auth/logout"
     static let accountPath = "/api/v1/auth/sso/me"
+    /// The account's money. Requires the session.
+    static let profilePath = "/api/v1/user/profile"
+    /// The server's money unit. Public — no session needed.
+    static let publicSettingsPath = "/api/v1/settings/public"
+
+    /// Where "Open the website" goes: the account panel, not the issuer.
+    ///
+    /// The panel keeps its session in its own first-party storage and renews it
+    /// by itself, so a browser that has signed in there once goes straight to
+    /// the dashboard afterwards. The issuer is a different origin with its own
+    /// cookie, and sending people there looked like being signed out: the app
+    /// had a session, the browser did not, and the page asked for a password.
+    static var panel: URL { api }
 
     /// The registered loopback callback. Host and path are fixed by the
     /// server's validation; only the port is chosen at runtime.

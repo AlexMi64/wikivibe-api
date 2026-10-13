@@ -28,8 +28,15 @@ enum WikiVibeAuthState: Equatable {
 @MainActor
 final class WikiVibeAuthCoordinator: ObservableObject {
     @Published private(set) var state: WikiVibeAuthState = .signedOut
+    /// The account's money, when the server has been asked and answered. Nil
+    /// while unknown — the window shows nothing rather than a zero it invented.
+    @Published private(set) var wallet: WikiVibeWallet?
     /// True while a sign-in or sign-out is in flight, so buttons can disable.
     @Published private(set) var isBusy = false
+    /// True while the balance is being fetched, so the window can say so.
+    @Published private(set) var isLoadingWallet = false
+    /// Why the balance is unavailable, when it is.
+    @Published private(set) var walletError: String?
     /// A caveat that is not a failure: a restored session the server could not
     /// be asked about, because the network is down.
     @Published private(set) var notice: String?
@@ -39,10 +46,31 @@ final class WikiVibeAuthCoordinator: ObservableObject {
     /// forgotten window does not leave a port open all day.
     static let signInTimeout: TimeInterval = 300
 
+    /// How often the balance is re-read while the app is signed in.
+    ///
+    /// A balance is a number other machines change: usage on another device
+    /// moves it without this app doing anything, so a figure read once at
+    /// sign-in quietly goes stale. A minute is the same interval the backend
+    /// specification proposes for account polling.
+    static let walletRefreshInterval: TimeInterval = 60
+
+    /// The same poll, faster, while the account window is on screen.
+    ///
+    /// The row in the notch can lag a minute without anyone noticing; a window
+    /// someone is looking at cannot, and that is the only moment a shorter
+    /// interval costs anything. The poll reads this each time round, so opening
+    /// or closing the window changes the rate without restarting it.
+    static let walletRefreshIntervalVisible: TimeInterval = 15
+
+    /// True while the account window is on screen, which shortens the poll.
+    private var walletIsVisible = false
+
     private let api: WikiVibeAuthAPIInterface
     private let store: WikiVibeSessionStoreInterface
     private var listener: WikiVibeCallbackServer?
     private var session: WikiVibeSession?
+    /// The balance poll, alive only while there is a session to poll with.
+    private var walletTask: Task<Void, Never>?
 
     init(api: WikiVibeAuthAPIInterface = WikiVibeAuthAPI(),
          store: WikiVibeSessionStoreInterface = KeychainWikiVibeSessionStore()) {
@@ -99,9 +127,73 @@ final class WikiVibeAuthCoordinator: ObservableObject {
             notice = nil
         } catch WikiVibeAuthError.sessionExpired {
             await forgetLocalSession()
+            return
         } catch {
             notice = L10n.t("Signed in, but the session could not be confirmed with WikiVibe.")
         }
+        await loadWallet()
+        startWalletPolling()
+    }
+
+    /// Fetch the account's money and publish it, or publish why it is missing.
+    ///
+    /// Deliberately not fatal: a balance that could not be read leaves the app
+    /// signed in, because the session is fine — only the number is unknown. The
+    /// window keeps showing the account and says what happened to the money row
+    /// rather than quietly dropping it.
+    func loadWallet() async {
+        guard let session, !isLoadingWallet else { return }
+        isLoadingWallet = true
+        defer { isLoadingWallet = false }
+        do {
+            wallet = try await api.wallet(for: session)
+            walletError = nil
+        } catch WikiVibeAuthError.sessionExpired {
+            await forgetLocalSession()
+        } catch let error as WikiVibeAuthError {
+            wallet = nil
+            walletError = error.errorDescription ?? L10n.t("The balance could not be read.")
+        } catch {
+            wallet = nil
+            walletError = error.localizedDescription
+        }
+    }
+
+    /// Start re-reading the balance while signed in.
+    ///
+    /// Idempotent: called on restore, after sign-in and when the window opens,
+    /// and only one poll ever runs. The task holds no session of its own — it
+    /// reads whatever `session` currently is, so a sign-out stops it instead of
+    /// letting a stale token keep polling.
+    func startWalletPolling() {
+        guard walletTask == nil, session != nil else { return }
+        walletTask = Task { [weak self] in
+            while !Task.isCancelled {
+                let interval = await self?.currentWalletInterval() ?? Self.walletRefreshInterval
+                try? await Task.sleep(nanoseconds: UInt64(interval * 1_000_000_000))
+                if Task.isCancelled { return }
+                guard let self else { return }
+                guard await self.session != nil else { return }
+                await self.loadWallet()
+            }
+        }
+    }
+
+    /// The interval the poll should use right now.
+    func currentWalletInterval() -> TimeInterval {
+        walletIsVisible ? Self.walletRefreshIntervalVisible : Self.walletRefreshInterval
+    }
+
+    /// Tell the coordinator whether the window is on screen. Only the interval
+    /// changes; the poll itself is not restarted, so no reading is skipped.
+    func setWalletVisible(_ visible: Bool) {
+        walletIsVisible = visible
+    }
+
+    /// Stop re-reading. Called on sign-out and when the app goes away.
+    func stopWalletPolling() {
+        walletTask?.cancel()
+        walletTask = nil
     }
 
     // MARK: - Sign in
@@ -149,6 +241,8 @@ final class WikiVibeAuthCoordinator: ObservableObject {
                 guard store.save(session) else { throw WikiVibeAuthError.storageFailed }
                 self.session = session
                 state = .signedIn(session.account)
+                await loadWallet()
+                startWalletPolling()
             case .denied(let reason):
                 state = .failed(L10n.t("WikiVibe refused the sign-in: \(reason)"))
             case .timedOut:
@@ -201,9 +295,15 @@ final class WikiVibeAuthCoordinator: ObservableObject {
 
     /// Drop everything this machine holds, without touching the server.
     private func forgetLocalSession() async {
+        stopWalletPolling()
         session = nil
         store.clear()
         notice = nil
+        // The money belongs to the session that read it. Leaving it on screen
+        // after sign-out would keep showing a balance for an account the app no
+        // longer has a session for.
+        wallet = nil
+        walletError = nil
         state = .signedOut
     }
 }

@@ -1,6 +1,14 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "The website keeps its own sign-in. If it asks for a password, you have not signed in there in this browser yet.": {"extractionState": "manual", "localizations": {"ru": {"stringUnit": {"state": "translated", "value": "У сайта свой вход. Если он просит пароль, значит в этом браузере вы ещё не входили на сайт."}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "网站有自己的登录。如果它要求输入密码，说明你还没有在这个浏览器里登录过网站。"}}} },
+    "Regular": {"extractionState": "manual", "localizations": {"ru": {"stringUnit": {"state": "translated", "value": "Обычный"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "普通"}}} },
+    "On hold": {"extractionState": "manual", "localizations": {"ru": {"stringUnit": {"state": "translated", "value": "Заморожено"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "冻结中"}}} },
+    "Refresh": {"extractionState": "manual", "localizations": {"ru": {"stringUnit": {"state": "translated", "value": "Обновить"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "刷新"}}} },
+    "Reading the balance…": {"extractionState": "manual", "localizations": {"ru": {"stringUnit": {"state": "translated", "value": "Читаю баланс…"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "正在读取余额…"}}} },
+    "Open the website": {"extractionState": "manual", "localizations": {"ru": {"stringUnit": {"state": "translated", "value": "Открыть сайт"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "打开网站"}}} },
+    "The balance could not be read.": {"extractionState": "manual", "localizations": {"ru": {"stringUnit": {"state": "translated", "value": "Не удалось прочитать баланс."}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "无法读取余额。"}}} },
+    "The balance could not be read: %@": {"extractionState": "manual", "localizations": {"ru": {"stringUnit": {"state": "translated", "value": "Не удалось прочитать баланс: %@"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "无法读取余额：%@"}}} },
     "Sign in to WikiVibe to show your account": {"extractionState": "manual", "localizations": {"ru": {"stringUnit": {"state": "translated", "value": "Войдите в WikiVibe, чтобы увидеть аккаунт"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "登录 WikiVibe 以显示账号"}}} },
     "Account": {"extractionState": "manual", "localizations": {"ru": {"stringUnit": {"state": "translated", "value": "Аккаунт"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "账号"}}} },
     "Waiting for the browser to finish sign-in…": {"extractionState": "manual", "localizations": {"ru": {"stringUnit": {"state": "translated", "value": "Ожидание завершения входа в браузере…"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "等待浏览器完成登录…"}}} },
@@ -40032,59 +40040,7 @@
         }
       }
     },
-    "Bonus": {
-      "extractionState": "manual",
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ボーナス"
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Бонус"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "奖励"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "紅利"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "보너스"
-          }
-        },
-        "uz": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bonus"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bonus"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bonus"
-          }
-        }
-      }
-    },
+    "Bonus": {"extractionState": "manual", "localizations": {"ja": {"stringUnit": {"state": "translated", "value": "ボーナス"}}, "uk": {"stringUnit": {"state": "translated", "value": "Бонус"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "奖励"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "紅利"}}, "ko": {"stringUnit": {"state": "translated", "value": "보너스"}}, "uz": {"stringUnit": {"state": "translated", "value": "Bonus"}}, "id": {"stringUnit": {"state": "translated", "value": "Bonus"}}, "tr": {"stringUnit": {"state": "translated", "value": "Bonus"}}, "ru": {"stringUnit": {"state": "translated", "value": "Бонусный"}}}},
     "Kiro CLI reported no usage": {
       "extractionState": "manual",
       "localizations": {

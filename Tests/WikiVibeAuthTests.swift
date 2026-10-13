@@ -129,7 +129,10 @@ final class WikiVibeAuthTests: XCTestCase {
         async let outcome = server.waitForCallback(timeout: 10)
         let (status, _) = try await get("http://127.0.0.1:\(server.port)/callback?code=code-1&state=\(state)")
         XCTAssertEqual(status, 200)
-        XCTAssertEqual(try await outcome, .authorized(code: "code-1"))
+        // Bound before the assertion: `XCTAssertEqual` takes an autoclosure, and
+        // an `await` cannot live inside one.
+        let delivered = try await outcome
+        XCTAssertEqual(delivered, .authorized(code: "code-1"))
     }
 
     /// Browsers ask for `favicon.ico` unprompted. If that settled the wait, a
@@ -146,13 +149,15 @@ final class WikiVibeAuthTests: XCTestCase {
 
         async let outcome = server.waitForCallback(timeout: 10)
         _ = try await get("http://127.0.0.1:\(server.port)/callback?code=code-2&state=\(state)")
-        XCTAssertEqual(try await outcome, .authorized(code: "code-2"))
+        let delivered = try await outcome
+        XCTAssertEqual(delivered, .authorized(code: "code-2"))
     }
 
     func testListenerGivesUpAfterTheDeadline() async throws {
         let server = try await WikiVibeCallbackServer.start(expectedState: state)
         defer { Task { await server.stop() } }
-        XCTAssertEqual(try await server.waitForCallback(timeout: 1), .timedOut)
+        let outcome = try await server.waitForCallback(timeout: 1)
+        XCTAssertEqual(outcome, .timedOut)
     }
 
     /// Closing the listener must release the wait, or a cancelled sign-in would
@@ -161,7 +166,8 @@ final class WikiVibeAuthTests: XCTestCase {
         let server = try await WikiVibeCallbackServer.start(expectedState: state)
         async let outcome = server.waitForCallback(timeout: 30)
         await server.stop()
-        XCTAssertEqual(try await outcome, .cancelled)
+        let cancelled = try await outcome
+        XCTAssertEqual(cancelled, .cancelled)
         // Stopping twice is allowed: every path out of sign-in calls it.
         await server.stop()
     }
@@ -203,6 +209,70 @@ final class WikiVibeAuthTests: XCTestCase {
     func testAccountDisplayNameFallsBackToEmail() {
         XCTAssertEqual(WikiVibeAccount(id: 1, username: "nick", email: "n@e.com").displayName, "nick")
         XCTAssertEqual(WikiVibeAccount(id: 1, username: "  ", email: "n@e.com").displayName, "n@e.com")
+    }
+
+    /// "Open the website" leads to the panel, not the issuer.
+    ///
+    /// The issuer is a different origin with its own session cookie; sending
+    /// people there read as being signed out, because the app had a session and
+    /// the browser did not. The panel keeps a first-party session and renews it
+    /// itself, so a browser that has signed in there once stays signed in.
+    func testTheWebsiteButtonLeadsToThePanel() {
+        XCTAssertEqual(WikiVibeAuthContract.panel, WikiVibeAuthContract.api)
+        XCTAssertNotEqual(WikiVibeAuthContract.panel, WikiVibeAuthContract.issuer)
+        XCTAssertEqual(WikiVibeAuthContract.panel.host, "api.wikivibe.dev")
+    }
+}
+
+// MARK: - Wallet
+
+/// The balance's own rules: which number is which, and what a missing field
+/// means. These decide whether the window shows the account's money or a zero
+/// nobody sent.
+final class WikiVibeWalletTests: XCTestCase {
+    private func wallet(regular: Double, bonus: Double? = nil, frozen: Double? = nil,
+                        name: String = "USD", symbol: String = "$") -> WikiVibeWallet {
+        WikiVibeWallet(regular: regular, bonus: bonus, frozen: frozen,
+                       currencyName: name, currencySymbol: symbol)
+    }
+
+    /// The unit is an operator setting: the symbol is used when present, the
+    /// name when there is no symbol, and neither is invented.
+    func testAmountUsesTheServersOwnUnit() {
+        XCTAssertEqual(wallet(regular: 116.11214956).regularText, "$116.11")
+        XCTAssertEqual(wallet(regular: 5, name: "EUR", symbol: "").regularText, "5.00 EUR")
+        XCTAssertEqual(wallet(regular: 5, name: "", symbol: "").regularText, "5.00")
+        XCTAssertEqual(wallet(regular: 5, name: "USD", symbol: "₽").regularText, "₽5.00")
+    }
+
+    /// The three amounts are distinct: a bonus is not spendable balance, and a
+    /// hold is not money the user has.
+    func testEachAmountIsRenderedSeparately() {
+        let w = wallet(regular: 10, bonus: 2.5, frozen: 3)
+        XCTAssertEqual(w.regularText, "$10.00")
+        XCTAssertEqual(w.bonusText, "$2.50")
+        XCTAssertEqual(w.frozenText, "$3.00")
+    }
+
+    /// A field the server did not send is unknown, not zero. The server does
+    /// send an explicit zero when the account genuinely has no bonus, and that
+    /// zero is data — so the two cases must not collapse into one another.
+    func testMissingBonusIsUnknownWhileAnExplicitZeroIsData() {
+        XCTAssertNil(wallet(regular: 10).bonusText, "no bonus field means the server did not say")
+        XCTAssertEqual(wallet(regular: 10, bonus: 0).bonusText, "$0.00", "an explicit zero is a reading")
+    }
+
+    /// Nothing on hold is the ordinary case and needs no row; a real hold does.
+    func testFrozenAmountIsShownOnlyWhenNonZero() {
+        XCTAssertNil(wallet(regular: 10, frozen: 0).frozenText)
+        XCTAssertNil(wallet(regular: 10).frozenText)
+        XCTAssertEqual(wallet(regular: 10, frozen: 1.5).frozenText, "$1.50")
+    }
+
+    /// A negative balance is the server's number and is passed through rather
+    /// than clamped: hiding it would misstate an overdrawn account.
+    func testNegativeBalanceIsPreserved() {
+        XCTAssertEqual(wallet(regular: -3.5).regularText, "$-3.50")
     }
 }
 
@@ -332,6 +402,132 @@ final class WikiVibeAuthCoordinatorTests: XCTestCase {
 
         XCTAssertEqual(api.revokedRefreshTokens, ["refresh-7"])
     }
+
+    /// Restoring a session reads the money too: a signed-in window that never
+    /// shows a balance would look like an account with nothing in it.
+    func testRestoreLoadsTheBalance() async {
+        let store = StubSessionStore(session: session(expiresIn: 3600))
+        let api = StubAuthAPI(account: account)
+        api.wallet = WikiVibeWallet(regular: 116.11, bonus: 0, frozen: 0,
+                                    currencyName: "USD", currencySymbol: "$")
+        let coordinator = WikiVibeAuthCoordinator(api: api, store: store)
+
+        await coordinator.restore()
+
+        XCTAssertEqual(api.walletCount, 1)
+        XCTAssertEqual(coordinator.wallet?.regularText, "$116.11")
+        XCTAssertNil(coordinator.walletError)
+    }
+
+    /// A balance that could not be read leaves the user signed in. The session
+    /// is fine — only the number is missing, and signing out over it would cost
+    /// the user another trip through the browser for nothing.
+    func testWalletFailureKeepsTheSessionAndSaysWhy() async {
+        let store = StubSessionStore(session: session(expiresIn: 3600))
+        let api = StubAuthAPI(account: account)
+        api.walletError = .transport("offline")
+        let coordinator = WikiVibeAuthCoordinator(api: api, store: store)
+
+        await coordinator.restore()
+
+        XCTAssertEqual(coordinator.state, .signedIn(account))
+        XCTAssertNil(coordinator.wallet, "an unread balance must not be shown as zero")
+        XCTAssertNotNil(coordinator.walletError)
+        XCTAssertNotNil(store.saved, "the session itself was never in question")
+    }
+
+    /// A revoked session discovered while reading the balance is still a
+    /// revoked session: the app signs out rather than reporting a money error.
+    func testWalletSessionExpirySignsOut() async {
+        let store = StubSessionStore(session: session(expiresIn: 3600))
+        let api = StubAuthAPI(account: account)
+        api.walletError = .sessionExpired
+        let coordinator = WikiVibeAuthCoordinator(api: api, store: store)
+
+        await coordinator.restore()
+
+        XCTAssertEqual(coordinator.state, .signedOut)
+        XCTAssertTrue(store.cleared)
+        XCTAssertNil(coordinator.wallet)
+    }
+
+    /// Signing out takes the money off the screen: it belonged to a session the
+    /// app no longer has.
+    func testSignOutClearsTheBalance() async {
+        let store = StubSessionStore(session: session(expiresIn: 3600))
+        let api = StubAuthAPI(account: account)
+        api.wallet = WikiVibeWallet(regular: 5, bonus: nil, frozen: nil,
+                                    currencyName: "USD", currencySymbol: "$")
+        let coordinator = WikiVibeAuthCoordinator(api: api, store: store)
+        await coordinator.restore()
+        XCTAssertNotNil(coordinator.wallet)
+
+        await coordinator.signOut()
+
+        XCTAssertNil(coordinator.wallet)
+        XCTAssertNil(coordinator.walletError)
+    }
+
+    /// The balance is re-read while signed in, so a number another machine
+    /// moves does not stay on screen at its old value.
+    func testWalletPollingRefreshesTheBalance() async {
+        let store = StubSessionStore(session: session(expiresIn: 3600))
+        let api = StubAuthAPI(account: account)
+        api.wallet = WikiVibeWallet(regular: 10, bonus: nil, frozen: nil,
+                                    currencyName: "USD", currencySymbol: "$")
+        let coordinator = WikiVibeAuthCoordinator(api: api, store: store)
+        await coordinator.restore()
+        let afterRestore = api.walletCount
+
+        // The interval is a minute; the poll is driven directly rather than
+        // waited out, so the test does not depend on wall-clock time.
+        api.wallet = WikiVibeWallet(regular: 7.5, bonus: nil, frozen: nil,
+                                    currencyName: "USD", currencySymbol: "$")
+        await coordinator.loadWallet()
+
+        XCTAssertEqual(api.walletCount, afterRestore + 1)
+        XCTAssertEqual(coordinator.wallet?.regularText, "$7.50")
+    }
+
+    /// One poll, not one per call: restore, sign-in and opening the window all
+    /// ask for polling, and a second task would double the request rate.
+    func testStartingPollingTwiceKeepsOnePoll() async {
+        let store = StubSessionStore(session: session(expiresIn: 3600))
+        let api = StubAuthAPI(account: account)
+        api.wallet = WikiVibeWallet(regular: 1, bonus: nil, frozen: nil,
+                                    currencyName: "USD", currencySymbol: "$")
+        let coordinator = WikiVibeAuthCoordinator(api: api, store: store)
+        await coordinator.restore()
+
+        coordinator.startWalletPolling()
+        coordinator.startWalletPolling()
+        coordinator.stopWalletPolling()
+        coordinator.stopWalletPolling()
+
+        // Reaching here without a crash or a leaked task is the assertion; the
+        // observable contract is that a stopped poll can be started again.
+        coordinator.startWalletPolling()
+        coordinator.stopWalletPolling()
+    }
+
+    /// The visible window polls faster, and only the interval changes — the
+    /// poll keeps running, so no reading is skipped when the window opens.
+    func testVisibleWindowShortensTheInterval() async {
+        let store = StubSessionStore(session: session(expiresIn: 3600))
+        let api = StubAuthAPI(account: account)
+        api.wallet = WikiVibeWallet(regular: 1, bonus: nil, frozen: nil,
+                                    currencyName: "USD", currencySymbol: "$")
+        let coordinator = WikiVibeAuthCoordinator(api: api, store: store)
+        await coordinator.restore()
+
+        XCTAssertEqual(coordinator.currentWalletInterval(), WikiVibeAuthCoordinator.walletRefreshInterval)
+        coordinator.setWalletVisible(true)
+        XCTAssertEqual(coordinator.currentWalletInterval(), WikiVibeAuthCoordinator.walletRefreshIntervalVisible)
+        XCTAssertLessThan(WikiVibeAuthCoordinator.walletRefreshIntervalVisible,
+                          WikiVibeAuthCoordinator.walletRefreshInterval)
+        coordinator.setWalletVisible(false)
+        XCTAssertEqual(coordinator.currentWalletInterval(), WikiVibeAuthCoordinator.walletRefreshInterval)
+    }
 }
 
 // MARK: - Stubs
@@ -364,7 +560,10 @@ private final class StubAuthAPI: WikiVibeAuthAPIInterface, @unchecked Sendable {
     var accountError: WikiVibeAuthError?
     var refreshError: WikiVibeAuthError?
     var refreshed: WikiVibeSession?
+    var wallet: WikiVibeWallet?
+    var walletError: WikiVibeAuthError?
     private(set) var refreshCount = 0
+    private(set) var walletCount = 0
     private(set) var revokedRefreshTokens: [String] = []
 
     init(account: WikiVibeAccount) { self.account = account }
@@ -386,6 +585,13 @@ private final class StubAuthAPI: WikiVibeAuthAPIInterface, @unchecked Sendable {
     func account(for session: WikiVibeSession) async throws -> WikiVibeAccount {
         if let accountError { throw accountError }
         return account
+    }
+
+    func wallet(for session: WikiVibeSession) async throws -> WikiVibeWallet {
+        walletCount += 1
+        if let walletError { throw walletError }
+        guard let wallet else { throw WikiVibeAuthError.balanceUnavailable("not configured") }
+        return wallet
     }
 
     func revoke(refreshToken: String) async {

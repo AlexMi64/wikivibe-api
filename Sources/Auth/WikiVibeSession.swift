@@ -22,6 +22,8 @@ enum WikiVibeAuthError: LocalizedError, Equatable {
     case entropyUnavailable
     /// The session was obtained but could not be written to the keychain.
     case storageFailed
+    /// The account's money could not be read. Not zero — unknown.
+    case balanceUnavailable(String)
 
     var errorDescription: String? {
         switch self {
@@ -41,6 +43,8 @@ enum WikiVibeAuthError: LocalizedError, Equatable {
             return L10n.t("A secure sign-in request could not be generated.")
         case .storageFailed:
             return L10n.t("The session could not be saved to the keychain.")
+        case .balanceUnavailable(let reason):
+            return L10n.t("The balance could not be read: \(reason)")
         }
     }
 }
