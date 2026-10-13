@@ -19,11 +19,13 @@ make test TEST_FLAGS='-only-testing:WikiVibeTests/NotchEdgeTests -only-testing:W
 
 ### Credentials and backend work
 
-`Sources/App/AppDelegate.swift` owns startup. Retain the native notch architecture and explicit unavailable-account state until a desktop contract is confirmed. Do not enable third-party provider discovery, agent-log indexing, phone listeners, credential migration or update feeds as part of WikiVibe integration.
+`Sources/App/AppDelegate.swift` owns startup. Retain the native notch architecture. Do not enable third-party provider discovery, agent-log indexing, phone listeners, credential migration or update feeds as part of WikiVibe integration.
 
-Do not read another application's credentials during verification. Never print tokens, cookies, keys or PII. Account-session tokens and inference API keys are separate credentials. Once the backend contract exists, store desktop session credentials only in macOS Keychain. Opening the browser is not evidence of authentication.
+Do not read another application's credentials during verification. Never print tokens, cookies, keys or PII. Account-session tokens and inference API keys are separate credentials. Desktop session credentials belong only in the macOS keychain (`WikiVibeSessionStore`), never in `UserDefaults`, a log or the web-view store. Opening the browser is not evidence of authentication: only a token exchange that the server accepted is.
 
 Read [the backend specification](BACKEND_SPEC.en.md) before implementing a connector. Proposals are not confirmed API contracts. Isolated parser fixtures and opt-in live checks do not prove WikiVibe integration. Do not enable live-test flags or use personal credentials to run tests.
+
+Sign-in uses the registered public client `desktop` and PKCE S256. Do not embed a client secret, weaken the `state` check, or widen the callback beyond the registered loopback host and path. The listener closes on every outcome; a change that can leave it open holds a port the app no longer watches. Balance and spending are out of scope and are not read.
 
 ### Changes and publication
 
@@ -48,11 +50,13 @@ Inspect app-owned logs only; redact sensitive data before sharing:
 
 ### Учётные данные и серверная интеграция
 
-Запуском управляет `Sources/App/AppDelegate.swift`. До подтверждения контракта настольного клиента сохраняйте архитектуру виджета и явное состояние недоступной интеграции. Не подключайте поиск сторонних аккаунтов, индексацию журналов агентов, сервис связи с телефоном, миграцию учётных данных или каналы обновлений.
+Запуском управляет `Sources/App/AppDelegate.swift`. Сохраняйте архитектуру виджета. Не подключайте поиск сторонних аккаунтов, индексацию журналов агентов, сервис связи с телефоном, миграцию учётных данных или каналы обновлений.
 
-При проверке не читайте учётные данные других приложений. Не выводите токены, cookies, ключи и персональные данные. Токены сессии аккаунта и ключи inference API — разные сущности. После подтверждения серверного контракта храните сессию настольного клиента только в macOS Keychain. Открытие браузера не доказывает успешный вход.
+При проверке не читайте учётные данные других приложений. Не выводите токены, cookies, ключи и персональные данные. Токены сессии аккаунта и ключи inference API — разные сущности. Сессию настольного клиента храните только в macOS Keychain (`WikiVibeSessionStore`), никогда в `UserDefaults`, логах или хранилище web-представления. Открытие браузера не доказывает успешный вход — доказывает только обмен кода, принятый сервером.
 
 Перед реализацией коннектора прочитайте [серверную спецификацию](BACKEND_SPEC.md). Предложения не являются подтверждёнными API-контрактами. Изолированные данные для парсеров и проверки с реальными сервисами не доказывают интеграцию WikiVibe. Не включайте флаги тестов с реальными сервисами и не используйте личные учётные данные в тестах.
+
+Вход использует зарегистрированный публичный клиент `desktop` и PKCE S256. Не встраивайте client secret, не ослабляйте проверку `state` и не расширяйте callback за пределы зарегистрированных loopback-хоста и пути. Листенер закрывается на любом исходе; изменение, оставляющее его открытым, удерживает порт, за которым приложение больше не следит. Баланс и расходы вне объёма и не читаются.
 
 ### Изменения и публикация
 
@@ -73,9 +77,11 @@ Inspect app-owned logs only; redact sensitive data before sharing:
 
 ### 凭据和后端接入
 
-`Sources/App/AppDelegate.swift` 负责启动。桌面接口约定确认前，保留原生小组件架构和明确的接入不可用状态。不要启用第三方账号发现、代理日志索引、手机连接服务、凭据迁移或更新源。
+`Sources/App/AppDelegate.swift` 负责启动。保留原生小组件架构。不要启用第三方账号发现、代理日志索引、手机连接服务、凭据迁移或更新源。
 
-验证时不要读取其他应用的凭据，也不要使用其他人的账号。不要输出令牌、cookies、密钥或个人信息。账号会话令牌和推理 API 密钥必须分开。后端约定确认后，桌面会话凭据只能放在 macOS Keychain 中。打开浏览器不代表登录成功。
+验证时不要读取其他应用的凭据，也不要使用其他人的账号。不要输出令牌、cookies、密钥或个人信息。账号会话令牌和推理 API 密钥必须分开。桌面会话凭据只能放在 macOS Keychain（`WikiVibeSessionStore`）中，绝不放进 `UserDefaults`、日志或 Web 视图存储。打开浏览器不代表登录成功——只有服务器接受的授权码交换才算。
+
+登录使用已注册的公共客户端 `desktop` 和 PKCE S256。不要内置 client secret，不要削弱 `state` 校验，也不要把回调扩展到已注册的 loopback 主机和路径之外。监听端口在任何结果下都会关闭；让它保持打开的改动会占住应用已不再监视的端口。余额和支出不在范围内，不会被读取。
 
 实现连接器前，先读[后端规范](BACKEND_SPEC.zh-CN.md)。建议方案不是已确认的 API。解析测试数据和真实服务检查不能证明 WikiVibe 已接通。不要启用真实服务测试开关，也不要用个人凭据运行测试。
 

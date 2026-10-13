@@ -2,7 +2,9 @@
 
 [English](BACKEND_SPEC.en.md) · [Русский — 权威版本](BACKEND_SPEC.md) · [简体中文](BACKEND_SPEC.zh-CN.md)
 
-状态：**BLOCKED**。服务器端方案由 backend 团队确认。本文只覆盖 macOS 原生应用的登录、账号余额和支出，以及跳转到 HTTPS 充值页面。代理配置和应用内付款不在范围内。如果译文有差异，以俄文规范为准。
+状态：**登录已实现；余额和支出不在范围内。** 服务器端方案由 backend 团队确认。本文只覆盖 macOS 原生应用的登录、账号余额和支出，以及跳转到 HTTPS 充值页面。代理配置和应用内付款不在范围内。如果译文有差异，以俄文规范为准。
+
+登录、会话恢复、令牌刷新和退出已经实现，并作为现行约定记录（第 1、1a、2 节）。余额和支出仍是后续阶段的建议：应用既不请求也不显示它们。
 
 ## 已确认的公开观察
 
@@ -35,37 +37,44 @@
 
 公开 tfcli loopback 是 /keys 的 API 密钥配置导入，不是已确认的原生账号登录，本应用不使用它。公开文档搜索没有找到 macOS 注册信息；这不表示 backend 无法提供。
 
-**明确的外部前提：** 注册的公共 desktop client_id、允许的 callback/loopback 和端口规则（或设备授权）、授权码交换适用性、audience/scopes，以及脱敏的账号和金额成功结构。刷新/退出需要有效期、轮换、终止错误及当前会话撤销规则。金额需要精度/null、周期/timezone、账号归属和轮询限制。没有合法桌面会话，Keychain 恢复、刷新/退出、真实金额、轮询/过期数据/迟到响应处理仍为 BLOCKED。已确认的充值跳转单独实现。
+**desktop 客户端已注册。** 后端 `origin/main` 新增第四个客户端 `desktop`（`shared_auth.desktop_redirect_uri`，默认 `http://127.0.0.1/callback`）。校验器接受任意 loopback 端口（RFC 8252 §7.3），但固定 scheme、host 和 path，`ResolveClient` 把 client_id 绑定到该地址。余额和支出不在本次任务内，因此其下方的约定仍为建议。
 
 ## 1. 通过系统浏览器登录
 
-目的：为原生公共客户端建立账号会话，不在应用中收集密码，也不在二进制中放入 client secret。负责方：backend。
+目的：为原生公共客户端建立账号会话，不在应用内收集密码，也不内置 client secret。负责方：backend。
 
-**桌面端接口尚未确认。** 需要发布 HTTP 方法、URL、参数和成功响应结构。应用不会调用下面提出但尚未确认的路由或流程。
+**现行方式：Authorization Code + PKCE S256。** 已实现并验证：
 
-**建议方案，不是现有 API：** Authorization Code 配合 PKCE（S256）。注册公共客户端，并确定一种允许的返回方式：localhost HTTP loopback，附带明确的端口选择规则；或受保护的已注册 callback。如果只支持设备授权，就发布设备授权流程，不要假设 OAuth 回调可用。
+- `GET https://auth.wikivibe.dev/api/v1/auth/sso/authorize`，参数 `client_id=desktop`、`redirect_uri=http://127.0.0.1:<端口>/callback`、`state`、`code_challenge`、`code_challenge_method=S256`。
+- 没有中心浏览器会话时返回 `302` 到 `https://auth.wikivibe.dev/login?redirect=…`；有会话时返回 `302` 到已注册回调，并带上 `code` 和原始 `state`。
+- `POST https://api.wikivibe.dev/api/v1/auth/sso/token`，JSON `{client_id, redirect_uri, code, code_verifier}`，返回 `access_token`、`refresh_token`、`expires_in`（秒）、`token_type` 和 `user`。不使用 `grant_type` 和 `response_type`。
+- 未注册的 `client_id`/`redirect_uri` 返回 `400 INVALID_REQUEST`；错误的 `code_verifier` 返回 `INVALID_CODE_VERIFIER`。
 
-明确授权请求字段：`client_id`、`redirect_uri`、`response_type`、scopes、`state`、`code_challenge` 和 `code_challenge_method`。回调应返回一次性 `code` 与原始 `state`，或明确的错误名称。POST 令牌交换需定义内容类型，以及 `grant_type`、`client_id`、`code`、`redirect_uri`、`code_verifier` 字段。
+`state` 必填，不超过 512 字节，且为可见 ASCII。`code_verifier` 为 43…128 个 base64url 字符。令牌只存放在 macOS 钥匙串；推理 API 密钥既不是账号令牌，也不是刷新令牌。
 
-建议的令牌响应：`access_token: string`、`token_type: "Bearer"`、`expires_in: integer seconds > 0`、`refresh_token?: string`、`scope?: string`。实际字段名、响应封装，以及可选字段和 `null` 的规则，仍需确认。令牌只保存在 macOS Keychain 中。推理 API 密钥不是账号令牌，也不是刷新令牌。
+## 1a. 会话生命周期
 
-说明取消、错误的 state/redirect/code、过期或重复使用的授权码、超时、HTTP 400/401/403/429/5xx、业务错误码、安全的用户提示和 Retry-After。明确授权码有效期、尝试次数限制和重放保护。令牌交换成功且账号身份确认前，即使浏览器已打开，应用也仍未登录。
+已实现并验证：`POST https://api.wikivibe.dev/api/v1/auth/refresh`，JSON `{refresh_token}`，返回 `access_token`、`refresh_token`、`expires_in`、`token_type`；refresh token 会轮换，因此应用保存收到的那一个。`POST https://api.wikivibe.dev/api/v1/auth/logout`，`{refresh_token}`，只撤销这一个令牌，与撤销账号全部会话相互独立。`GET https://api.wikivibe.dev/api/v1/auth/sso/me` 带 `Bearer` 确认账号，会话被撤销后返回 `401`。应用把 `401`/`403` 视为会话失效，而不是网络故障。
 
 ## 2. 账号身份、恢复、刷新和退出
 
-目的：确定会话归属，并定义完整的会话生命周期。负责方：backend。
+目的：确定会话归属和生命周期。负责方：backend。**已实现。**
 
-已观察到的 GET `/api/v1/auth/me` 并未确认成功响应结构。需要确认 host、path、method 和认证方式。建议的账号响应：稳定且不含敏感信息的 `account_id: string`，以及 `display_name?: string`。明确响应封装和最低 scopes。示例中不要放真实个人信息。
+账号：`GET https://api.wikivibe.dev/api/v1/auth/sso/me` 带 `Bearer`，在标准 `{code, message, data}` 外壳中返回 `{user, telegram_user}`。应用只读取 `user` 的 `id`、`username` 和 `email`——足以显示当前登录者，其余一概不保存。外壳具有权威性：即使 HTTP 200，`code != 0` 也是错误。
 
-刷新：确认 POST 接口、请求结构、有效期单位、令牌轮换规则、旧 refresh token 的失效方式，以及并发或重复请求的处理。建议请求为 `refresh_token: string`，响应沿用上述令牌结构。还需给出 refresh token 的有效期，以及会话过期或被撤销时的终止错误。
+刷新：`POST /api/v1/auth/refresh`，`{refresh_token}`；响应 `{access_token, refresh_token, expires_in, token_type}`。refresh token 会轮换，因此应用保存新的——沿用旧的会让下次刷新以「已撤销」失败。收到响应时 `expires_in` 就换算成绝对过期时间，而不是以时长形式保存。
 
-退出和撤销：确认地址、HTTP 方法、认证、请求与响应结构、只撤销当前会话的语义、它与撤销全部会话的区别，以及幂等性。即使后端不可用，本地退出也必须删除 Keychain 条目并取消未完成的数据请求。不能假造服务器撤销操作。Keychain 读取失败，不等于凭据不存在或已过期。
+退出与撤销：`POST /api/v1/auth/logout`，`{refresh_token}`，只撤销该令牌（不同于 `/auth/revoke-all-sessions` 会撤销账号的全部会话）。本地会话在发起服务器请求之前、且无论请求结果如何都会从钥匙串中清除：服务器不可达不应让用户停留在已经退出的机器上。
 
-会话代际边界：退出或切换账号后，不能再应用旧会话请求的响应。后端需提供稳定的账号标识，并让客户端能够核对返回数据属于哪个账号。
+恢复：启动时应用从钥匙串读取会话。access token 过期则刷新；refresh token 被撤销（`401`/`403`）则退出登录并明确提示。网络故障不算退出：会话保留，账号显示为未确认状态。钥匙串读取失败既不表示没有凭据，也不表示凭据过期。
+
+会话代际边界：上一会话的响应绝不会在退出后生效——退出在发起网络请求前就清空持有的会话，进行中的登录会关闭自己的监听端口。
 
 ## 3. 账号余额和支出
 
-目的：从服务器获取真实金额和支出，而不是从本地代理日志推算。负责方：backend。
+**不在本次范围内。** 本次任务只做授权：应用显示账号，不请求任何金额。以下是后续阶段的建议，不是现行约定。应用不调用这些路由，也不显示余额或支出。
+
+目的（后续阶段）：从服务器获取真实金额和支出，而不是从本地代理日志推算。负责方：backend。
 
 **已发现浏览器账号路由，但成功 JSON 结构和桌面会话适用性尚未确认。** 应明确 `/user/profile` 和 `/usage/stats`，而不是另造接口。不能用需要 API 密钥的 `/v1/usage?days=7` 代替。还需确认 scopes 和原生会话兼容性。
 
@@ -101,8 +110,8 @@
 
 ## 最小接入顺序
 
-1. 桌面公共客户端、浏览器返回、令牌交换和安全的错误结构。
-2. 账号身份、有效期、刷新和单个会话撤销。
-3. 账号余额和支出结构、单位、统计周期和轮询规则。
-4. 使用已确认的 `https://api.wikivibe.dev/purchase`，不创建付款。
-5. 用户自己登录。验证回调、重启恢复、真实金额、刷新、离线与过期数据、会话到期、退出和充值页面跳转，不进行付款。验证不需要、也不允许使用其他人的凭据。
+1. ~~桌面公共客户端、浏览器返回、令牌交换和安全的错误结构。~~ **已完成**（第 1 节）。
+2. ~~账号身份、有效期、刷新和单个会话撤销。~~ **已完成**（第 1a、2 节）。
+3. 账号余额和支出结构、单位、统计周期和轮询规则。**不在本次范围内。**
+4. `https://api.wikivibe.dev/purchase` 保持为网站按钮，应用内不付款。
+5. 用户自己登录。验证回调、重启恢复、会话到期和退出。验证不需要、也不允许使用其他人的凭据。

@@ -506,6 +506,9 @@ struct ProviderSnapshot: Identifiable, Equatable {
         case "ollama":       return L10n.t("Enter an Ollama API key in Settings, or export OLLAMA_API_KEY", locale: locale)
         case "ollama-local": return L10n.t("Start Ollama to monitor your local models", locale: locale)
         case "lmstudio":     return L10n.t("Start LM Studio's server to monitor your local models", locale: locale)
+        // WikiVibe's own row is about the account, not a limit: the prompt
+        // points at the one control that starts sign-in.
+        case "wikivibe":     return L10n.t("Sign in to WikiVibe to show your account", locale: locale)
         default:           return L10n.t("Sign in to \(displayName) to read your usage", locale: locale)
         }
     }

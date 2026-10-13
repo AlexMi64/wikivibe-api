@@ -1,18 +1,38 @@
 {
   "sourceLanguage": "en",
   "strings": {
-    "Account integration unavailable": { "extractionState": "manual", "localizations": { "ru": { "stringUnit": { "state": "translated", "value": "Интеграция аккаунта недоступна" } }, "zh-Hans": { "stringUnit": { "state": "translated", "value": "暂时无法连接账号" } } } },
-    "Desktop client and callback required": { "extractionState": "manual", "localizations": { "ru": { "stringUnit": { "state": "translated", "value": "Требуются desktop-клиент и адрес возврата" } }, "zh-Hans": { "stringUnit": { "state": "translated", "value": "需确认桌面客户端和回调地址" } } } },
-    "Desktop client registration and an allowed callback must be confirmed. This app stores no account session and displays no unverified amounts.": { "extractionState": "manual", "localizations": { "ru": { "stringUnit": { "state": "translated", "value": "Нужно подтвердить регистрацию настольного клиента и разрешённый адрес возврата. Приложение не хранит сессию аккаунта и не показывает неподтверждённые суммы." } }, "zh-Hans": { "stringUnit": { "state": "translated", "value": "还需确认桌面客户端的注册信息和允许的回调地址。目前应用不会保存账号会话，也不会显示未经确认的金额。" } } } },
-    "Open authentication website": { "extractionState": "manual", "localizations": { "ru": { "stringUnit": { "state": "translated", "value": "Открыть сайт авторизации" } }, "zh-Hans": { "stringUnit": { "state": "translated", "value": "打开登录网站" } } } },
-    "Top up on website": { "extractionState": "manual", "localizations": { "ru": { "stringUnit": { "state": "translated", "value": "Пополнить на сайте" } }, "zh-Hans": { "stringUnit": { "state": "translated", "value": "前往网站充值" } } } },
+    "Sign in to WikiVibe to show your account": {"extractionState": "manual", "localizations": {"ru": {"stringUnit": {"state": "translated", "value": "Войдите в WikiVibe, чтобы увидеть аккаунт"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "登录 WikiVibe 以显示账号"}}} },
+    "Account": {"extractionState": "manual", "localizations": {"ru": {"stringUnit": {"state": "translated", "value": "Аккаунт"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "账号"}}} },
+    "Waiting for the browser to finish sign-in…": {"extractionState": "manual", "localizations": {"ru": {"stringUnit": {"state": "translated", "value": "Ожидание завершения входа в браузере…"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "等待浏览器完成登录…"}}} },
+    "Not signed in": {"extractionState": "manual", "localizations": {"ru": {"stringUnit": {"state": "translated", "value": "Вход не выполнен"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "未登录"}}} },
+    "Sign in": {"extractionState": "manual", "localizations": {"ru": {"stringUnit": {"state": "translated", "value": "Войти"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "登录"}}} },
+    "Sign out": {"extractionState": "manual", "localizations": {"ru": {"stringUnit": {"state": "translated", "value": "Выйти"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "退出登录"}}} },
+    "Sign in to WikiVibe…": {"extractionState": "manual", "localizations": {"ru": {"stringUnit": {"state": "translated", "value": "Войти в WikiVibe…"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "登录 WikiVibe…"}}} },
+    "WikiVibe account…": {"extractionState": "manual", "localizations": {"ru": {"stringUnit": {"state": "translated", "value": "Аккаунт WikiVibe…"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "WikiVibe 账号…"}}} },
+    "Waiting for the browser…": {"extractionState": "manual", "localizations": {"ru": {"stringUnit": {"state": "translated", "value": "Ожидание браузера…"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "等待浏览器…"}}} },
+    "Open WikiVibe": {"extractionState": "manual", "localizations": {"ru": {"stringUnit": {"state": "translated", "value": "Открыть WikiVibe"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "打开 WikiVibe"}}} },
+    "WikiVibe": {"extractionState": "manual", "localizations": {"ru": {"stringUnit": {"state": "translated", "value": "WikiVibe"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "WikiVibe"}}} },
+    "Signing in happens in your browser. This app never sees your password.": {"extractionState": "manual", "localizations": {"ru": {"stringUnit": {"state": "translated", "value": "Вход выполняется в вашем браузере. Приложение не видит ваш пароль."}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "登录在浏览器中完成，应用不会看到你的密码。"}}} },
+    "The sign-in request could not be built: %@": {"extractionState": "manual", "localizations": {"ru": {"stringUnit": {"state": "translated", "value": "Не удалось собрать запрос на вход: %@"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "无法构建登录请求：%@"}}} },
+    "The system browser could not be opened.": {"extractionState": "manual", "localizations": {"ru": {"stringUnit": {"state": "translated", "value": "Не удалось открыть системный браузер."}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "无法打开系统浏览器。"}}} },
+    "The sign-in listener could not start: %@": {"extractionState": "manual", "localizations": {"ru": {"stringUnit": {"state": "translated", "value": "Не удалось запустить приём ответа: %@"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "无法启动登录接收端口：%@"}}} },
+    "WikiVibe refused the sign-in: %@": {"extractionState": "manual", "localizations": {"ru": {"stringUnit": {"state": "translated", "value": "WikiVibe отклонил вход: %@"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "WikiVibe 拒绝了本次登录：%@"}}} },
+    "The session has expired. Sign in again.": {"extractionState": "manual", "localizations": {"ru": {"stringUnit": {"state": "translated", "value": "Сессия истекла. Войдите снова."}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "会话已过期，请重新登录。"}}} },
+    "The sign-in service could not be reached: %@": {"extractionState": "manual", "localizations": {"ru": {"stringUnit": {"state": "translated", "value": "Не удалось связаться со службой входа: %@"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "无法连接登录服务：%@"}}} },
+    "A secure sign-in request could not be generated.": {"extractionState": "manual", "localizations": {"ru": {"stringUnit": {"state": "translated", "value": "Не удалось создать защищённый запрос на вход."}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "无法生成安全的登录请求。"}}} },
+    "The session could not be saved to the keychain.": {"extractionState": "manual", "localizations": {"ru": {"stringUnit": {"state": "translated", "value": "Не удалось сохранить сессию в связке ключей."}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "无法将会话保存到钥匙串。"}}} },
+    "Nothing to see here.": {"extractionState": "manual", "localizations": {"ru": {"stringUnit": {"state": "translated", "value": "Здесь ничего нет."}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "这里没有内容。"}}} },
+    "Sign-in could not be completed.": {"extractionState": "manual", "localizations": {"ru": {"stringUnit": {"state": "translated", "value": "Не удалось завершить вход."}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "无法完成登录。"}}} },
+    "This response did not come from the sign-in that is waiting.": {"extractionState": "manual", "localizations": {"ru": {"stringUnit": {"state": "translated", "value": "Этот ответ не относится к ожидаемому входу."}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "该响应并非来自正在等待的登录。"}}} },
+    "You can close this tab.": {"extractionState": "manual", "localizations": {"ru": {"stringUnit": {"state": "translated", "value": "Эту вкладку можно закрыть."}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "可以关闭此标签页。"}}} },
+    "WikiVibe is finishing sign-in.": {"extractionState": "manual", "localizations": {"ru": {"stringUnit": {"state": "translated", "value": "WikiVibe завершает вход."}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "WikiVibe 正在完成登录。"}}} },
+    "Signed in, but the session could not be confirmed with WikiVibe.": {"extractionState": "manual", "localizations": {"ru": {"stringUnit": {"state": "translated", "value": "Вход выполнен, но сессию не удалось подтвердить в WikiVibe."}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "已登录，但无法向 WikiVibe 确认该会话。"}}} },
+    "Sign-in was not completed in time.": {"extractionState": "manual", "localizations": {"ru": {"stringUnit": {"state": "translated", "value": "Вход не был завершён вовремя."}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "未在规定时间内完成登录。"}}} },
+    "The sign-in response did not match this request.": {"extractionState": "manual", "localizations": {"ru": {"stringUnit": {"state": "translated", "value": "Ответ на вход не соответствует этому запросу."}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "登录响应与本次请求不匹配。"}}} },
+    "The sign-in response was not usable: %@": {"extractionState": "manual", "localizations": {"ru": {"stringUnit": {"state": "translated", "value": "Ответ на вход оказался непригодным: %@"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "登录响应无法使用：%@"}}} },
+    "Sign-in failed.": {"extractionState": "manual", "localizations": {"ru": {"stringUnit": {"state": "translated", "value": "Не удалось войти."}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "登录失败。"}}} },
     "Could not open the system browser.": { "extractionState": "manual", "localizations": { "ru": { "stringUnit": { "state": "translated", "value": "Не удалось открыть системный браузер." } }, "zh-Hans": { "stringUnit": { "state": "translated", "value": "没能打开系统浏览器。" } } } },
-    "Opening the website does not sign in to this app.": { "extractionState": "manual", "localizations": { "ru": { "stringUnit": { "state": "translated", "value": "Открытие сайта не авторизует приложение." } }, "zh-Hans": { "stringUnit": { "state": "translated", "value": "打开网站不代表已在这个应用中登录。" } } } },
-    "No confirmed data": { "extractionState": "manual", "localizations": { "ru": { "stringUnit": { "state": "translated", "value": "Нет подтверждённых данных" } }, "zh-Hans": { "stringUnit": { "state": "translated", "value": "暂无已确认的数据" } } } },
-    "Spending and period": { "extractionState": "manual", "localizations": { "ru": { "stringUnit": { "state": "translated", "value": "Расходы и период" } }, "zh-Hans": { "stringUnit": { "state": "translated", "value": "支出与统计周期" } } } },
     "Widget": { "extractionState": "manual", "localizations": { "ru": { "stringUnit": { "state": "translated", "value": "Виджет" } }, "zh-Hans": { "stringUnit": { "state": "translated", "value": "小组件" } } } },
-    "WikiVibe — integration status…": { "extractionState": "manual", "localizations": { "ru": { "stringUnit": { "state": "translated", "value": "WikiVibe — состояние интеграции…" } }, "zh-Hans": { "stringUnit": { "state": "translated", "value": "WikiVibe — 连接状态…" } } } },
-    "Sign-in and balance unavailable: desktop client and callback must be confirmed.": { "extractionState": "manual", "localizations": { "ru": { "stringUnit": { "state": "translated", "value": "Вход и баланс недоступны: нужно подтвердить desktop-клиент и адрес возврата." } }, "zh-Hans": { "stringUnit": { "state": "translated", "value": "暂时无法登录或查看余额：还需确认桌面客户端和回调地址。" } } } },
     "Quit WikiVibe": { "extractionState": "manual", "localizations": { "ru": { "stringUnit": { "state": "translated", "value": "Завершить WikiVibe" } }, "zh-Hans": { "stringUnit": { "state": "translated", "value": "退出 WikiVibe" } } } },
     "Balance": { "extractionState": "manual", "localizations": { "ru": { "stringUnit": { "state": "translated", "value": "Баланс" } }, "zh-Hans": { "stringUnit": { "state": "translated", "value": "余额" } } } },
     "Screen edge": { "extractionState": "manual", "localizations": { "ru": { "stringUnit": { "state": "translated", "value": "Край экрана" } }, "zh-Hans": { "stringUnit": { "state": "translated", "value": "屏幕边缘" } } } },
@@ -50321,53 +50341,7 @@
         }
       }
     },
-    "Cancel": {
-      "extractionState": "manual",
-      "localizations": {
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "취소"
-          }
-        },
-        "uz": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bekor qilish"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Batal"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vazgeç"
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Скасувати"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "取消"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "取消"
-          }
-        }
-      }
-    },
+    "Cancel": {"extractionState": "manual", "localizations": {"ko": {"stringUnit": {"state": "translated", "value": "취소"}}, "uz": {"stringUnit": {"state": "translated", "value": "Bekor qilish"}}, "id": {"stringUnit": {"state": "translated", "value": "Batal"}}, "tr": {"stringUnit": {"state": "translated", "value": "Vazgeç"}}, "uk": {"stringUnit": {"state": "translated", "value": "Скасувати"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "取消"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "取消"}}, "ru": {"stringUnit": {"state": "translated", "value": "Отмена"}}}},
     "Show remaining budget (%) instead of spent": {
       "extractionState": "manual",
       "localizations": {

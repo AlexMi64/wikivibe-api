@@ -4,7 +4,8 @@ import SwiftUI
 
 /// WikiVibe owns its account session. Upstream credential discovery, agent
 /// monitoring, local cost indexing, phone serving and update feeds are not
-/// started by this product.
+/// started by this product. Usage and balance reading is not implemented: the
+/// app is authorized for the account, not the wallet.
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var fleet: NotchFleet?
@@ -12,6 +13,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var accountWindow: NSWindow?
     private var statusItem: NSStatusItem?
     private var cancellables = Set<AnyCancellable>()
+    /// Owns the account session. Created on launch so the stored session is
+    /// restored before the window first draws.
+    private let auth = WikiVibeAuthCoordinator()
 
     static func drawn(_ snapshots: [ProviderSnapshot], weekly: Bool, paced: Bool)
     -> [ProviderSnapshot] {
@@ -27,8 +31,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let fleet = NotchFleet(scope: preferences.notchScope, edge: preferences.notchEdge)
         self.fleet = fleet
         fleet.onOpenSettings = { [weak self] in self?.openSettings() }
-        // Account API routes exist, but no desktop session can be established
-        // without a confirmed public client and callback. Explain rather than poll.
+        // The notch has nothing to poll: this app reads the account, not usage.
+        // A refresh click opens the window that can change the account state.
         fleet.onRefresh = { [weak self] in self?.openSettings() }
         fleet.onRefreshProvider = { [weak self] _ in self?.openSettings() }
         fleet.onReposition = { [weak preferences] offset in
@@ -53,21 +57,57 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in self?.updateLocalizedSurface() }
             .store(in: &cancellables)
+        // The notch row is the account's own state, so it is repainted when
+        // sign-in, sign-out or a restore changes what the app knows.
+        auth.objectWillChange
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                DispatchQueue.main.async { self?.updateLocalizedSurface() }
+            }
+            .store(in: &cancellables)
         fleet.show()
+        // A stored session is picked up before the window can ask, so the
+        // account row never briefly claims the user is signed out.
+        Task { await auth.restore() }
         openSettings()
     }
 
     private func updateLocalizedSurface() {
-        fleet?.signInItems = [(title: L10n.t("WikiVibe — integration status…"), action: { [weak self] in
-            self?.openSettings()
-        })]
-        fleet?.setSnapshots([ProviderSnapshot(
+        fleet?.signInItems = [(
+            title: auth.account == nil ? L10n.t("Sign in to WikiVibe…") : L10n.t("WikiVibe account…"),
+            action: { [weak self] in self?.openSettings() }
+        )]
+        fleet?.setSnapshots([accountSnapshot])
+        installMenu()
+    }
+
+    /// The one row this app draws. It reports the account, not usage: reading
+    /// the wallet needs a contract this app does not have, and a number it
+    /// could not verify would be worse than no number.
+    private var accountSnapshot: ProviderSnapshot {
+        let status: ProviderStatus
+        let plan: String?
+        switch auth.state {
+        case .signedIn(let account):
+            status = .ok
+            plan = account.displayName
+        case .signingIn:
+            status = .stale(since: Date())
+            plan = L10n.t("Waiting for the browser…")
+        case .signedOut:
+            status = .needsAuth
+            plan = nil
+        case .failed(let message):
+            status = .error(message)
+            plan = nil
+        }
+        return ProviderSnapshot(
             id: "wikivibe", displayName: "WikiVibe", glyph: .wikivibe,
             fidelity: .official,
-            status: .unsupported(L10n.t("Sign-in and balance unavailable: desktop client and callback must be confirmed.")),
-            windows: []
-        )])
-        installMenu()
+            status: status,
+            windows: [],
+            plan: plan
+        )
     }
 
     private func applyAppearance() {
@@ -108,7 +148,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             )
             window.title = "WikiVibe"
             window.isReleasedWhenClosed = false
-            window.contentView = NSHostingView(rootView: WikiVibeAccountView(preferences: preferences))
+            window.contentView = NSHostingView(rootView: WikiVibeAccountView(auth: auth, preferences: preferences))
             window.center()
             accountWindow = window
         }
@@ -123,6 +163,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         cancellables.removeAll()
+        // Best effort: a sign-in still waiting owns a listening socket, and the
+        // OS reclaims it when the process exits either way. Closing it here is
+        // what lets the wait end cleanly if termination is not immediate.
+        let listener = auth
+        Task { await listener.cancelSignIn() }
         fleet?.stop()
         if let statusItem { NSStatusBar.system.removeStatusItem(statusItem) }
     }

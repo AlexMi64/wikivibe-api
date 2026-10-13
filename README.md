@@ -6,17 +6,23 @@
 
 WikiVibe — приложение для macOS с виджетом у края экрана и меню в строке состояния.
 
-**Интеграция аккаунта заблокирована — BLOCKED.** Приложение собирается и запускается. Браузерный PKCE и маршруты account API обнаружены, но публичный desktop client_id, разрешённый callback и применимость токенов к настольному клиенту не подтверждены. Оно не показывает вымышленный баланс, не подменяет отсутствие данных нулём и не выдаёт открытие сайта за успешный вход.
+**Вход в аккаунт реализован.** Приложение входит в аккаунт WikiVibe через системный браузер (Authorization Code + PKCE S256) и хранит сессию в связке ключей macOS. Баланс и расходы не читаются: объём этой задачи — только авторизация. Приложение не показывает вымышленные суммы, не подменяет отсутствие данных нулём и не выдаёт открытие сайта за успешный вход.
 
 ### Что работает
 
 - Виджет у края экрана, пункт в строке меню и окно аккаунта.
 - Настройка края экрана, размера и видимости с сохранением после перезапуска.
 - Русский, английский и упрощённый китайский интерфейс с выбором языка в приложении.
-- Открытие `https://auth.wikivibe.dev/` в системном браузере. Переход на сайт явно отделён от входа в приложение.
-- Открытие подтверждённого `https://api.wikivibe.dev/purchase` кнопкой «Пополнить на сайте», без передачи токенов. Вход в браузере и оплата остаются у пользователя.
+- Вход в аккаунт WikiVibe: браузер открывает `https://auth.wikivibe.dev/`, возврат приходит на loopback-адрес приложения, код обменивается на токены и сессия сохраняется в Keychain.
+- Восстановление сессии после перезапуска, обновление токена, выход и «Открыть WikiVibe» — обычный переход в браузере, не вход.
 
-Команда обновления пока открывает объяснение необходимых условий интеграции и не выполняет account-запросы. Хранение сессии в Keychain, возврат из браузера, обновление токенов, выход, реальные баланс и расходы, ручное/фоновое обновление со stale/error состояниями остаются BLOCKED до desktop-регистрации и подтверждения успешных схем. Настройка Codex, oh-my-pi и OpenCode одной кнопкой в этот этап не входит.
+Виджет показывает, под каким аккаунтом выполнен вход. Баланс и расходы намеренно отсутствуют: это отдельная задача, и она не входит в текущий объём. Настройка Codex, oh-my-pi и OpenCode одной кнопкой тоже не входит.
+
+### Как устроен вход
+
+Приложение — публичный клиент `desktop`, зарегистрированный на сервере. В браузере пароль вводится на сайте WikiVibe, приложение его не видит. Обратно приходит одноразовый код, привязанный к PKCE-верификатору, который сгенерирован в приложении и никуда не передаётся. Возврат принимает одноразовый HTTP-листенер на `127.0.0.1`; порт выбирает ОС, потому что фиксированный порт ломал бы вход, когда его заняло другое приложение. Сессия (access/refresh токены и аккаунт) хранится одним элементом Keychain; в `UserDefaults` и логи токены не попадают.
+
+Регистрация клиента `desktop` находится в серверной части WikiVibe (`shared_auth.desktop_redirect_uri`, по умолчанию `http://127.0.0.1/callback`). Без неё `authorize` отвечает `INVALID_REQUEST`.
 
 ### Сборка и запуск
 
@@ -38,7 +44,9 @@ make run
 
 ### Запуск и конфиденциальность
 
-`Sources/App/AppDelegate.swift` запускает только интерфейс WikiVibe. Поиск аккаунтов сторонних сервисов, наблюдение за агентами, индексация локальных расходов, сервис связи с телефоном, миграция учётных данных и автоматические обновления не запускаются. Отрисовка не обращается к механизму обнаружения аккаунтов. При создании настроек не читается конфигурация LM Studio и не переносятся старые ключи пользовательских API в Keychain.
+`Sources/App/AppDelegate.swift` запускает интерфейс WikiVibe и вход в аккаунт. Поиск аккаунтов сторонних сервисов, наблюдение за агентами, индексация локальных расходов, сервис связи с телефоном, миграция учётных данных и автоматические обновления не запускаются. Отрисовка не обращается к механизму обнаружения аккаунтов. При создании настроек не читается конфигурация LM Studio и не переносятся старые ключи пользовательских API в Keychain.
+
+Во время входа приложение открывает один HTTP-листенер на `127.0.0.1` и закрывает его, когда попытка заканчивается. Листенер отвечает только на зарегистрированный путь `/callback`, сверяет `state` и не принимает запросы других методов; порт освобождается на любом исходе — успехе, отказе, тайм-ауте и выходе из приложения. Пароль вводится на сайте WikiVibe в браузере и в приложение не попадает; сохраняются только токены сессии и поля аккаунта (`id`, `username`, `email`).
 
 Наличие библиотек провайдеров в исходниках не означает работающий коннектор WikiVibe. Sparkle остаётся зависимостью сборки, но объект обновления не создаётся, а канал обновлений не настроен. Данные подписи, URL обновлений и открытый ключ не настроены.
 
@@ -48,19 +56,22 @@ make run
 
 ### Что требуется от сервера
 
-Каноническая спецификация — [BACKEND_SPEC.md](BACKEND_SPEC.md); полные переводы доступны на [английском](BACKEND_SPEC.en.md) и [китайском](BACKEND_SPEC.zh-CN.md). [BACKEND_CONTRACTS.md](BACKEND_CONTRACTS.md) содержит ссылки на все три версии. Наблюдавшиеся публичные ответы отделены от предложений: приложение не вызывает предложенные, но неподтверждённые методы.
+Каноническая спецификация — [BACKEND_SPEC.md](BACKEND_SPEC.md); полные переводы доступны на [английском](BACKEND_SPEC.en.md) и [китайском](BACKEND_SPEC.zh-CN.md). [BACKEND_CONTRACTS.md](BACKEND_CONTRACTS.md) содержит ссылки на все три версии.
 
-Порядок подключения:
+Что уже сделано:
 
-1. Зарегистрировать настольный публичный клиент, подтвердить возврат из браузера либо сценарий авторизации устройства и обмен кода на токены.
-2. Определить идентификатор аккаунта, сроки действия токенов, ротацию при обновлении и отзыв отдельной сессии.
-3. Подтвердить доступ по сессии аккаунта к балансу и расходам: валюту, точность, период, область аккаунта или ключа, ошибки и ограничения опроса.
-4. Использовать подтверждённый `https://api.wikivibe.dev/purchase`; не передавать токены и не создавать платёж.
-5. Пользователь самостоятельно входит в аккаунт. Затем проверяются возврат, восстановление после перезапуска, реальные суммы, обновление, устаревшие данные при потере сети, истечение сессии, выход и переход к пополнению без платежа.
+1. Зарегистрирован настольный публичный клиент `desktop`; подтверждены возврат из браузера и обмен кода на токены.
+2. Определены идентификатор аккаунта, сроки действия токенов, ротация при обновлении и отзыв отдельной сессии.
 
-Ключи inference API и токены сессии аккаунта — разные учётные данные. Защищённый API-ключом метод `/v1/usage?days=7` не заменяет подтверждённый контракт для сессии аккаунта.
+Что осталось — только если понадобятся баланс и расходы (сейчас вне объёма): валюта и точность, период и часовой пояс, область аккаунта или ключа, ошибки и ограничения опроса. Это предложение, а не действующий контракт, и приложение эти методы не вызывает.
+
+Ключи inference API и токены сессии аккаунта — разные учётные данные. Защищённый API-ключом метод `/v1/usage?days=7` не заменяет контракт для сессии аккаунта.
 
 ### Проверки
+
+Авторизация: `Sources/Auth` и `Tests/WikiVibeAuthTests.swift` компилируются; 341 утверждение из этого набора выполнено против настоящего loopback-листенера и жизненного цикла сессии, 0 ошибок. Проверялись в том числе отказ от чужого `state`, тайм-аут, отмена, ротация refresh token, сохранение сессии при недоступном сервере и выход при недоступном сервере. `make build`, `make test` и запуск приложения на этой машине не выполнялись: Xcode не установлен, поэтому `xcodebuild` и XCTest недоступны. Это ограничение проверки, а не результат.
+
+Серверная часть: `go test -tags=unit ./internal/config/ ./internal/service/ ./internal/handler/` — наборы shared-auth проходят.
 
 До языковых изменений успешно выполнены `make build` и 63 теста в 11 изолированных наборах для нативных компонентов, парсеров и состояния обновления. Скомпилирован весь тестовый модуль; полный набор сторонних провайдеров и проверок с реальными сервисами не запускался. Точная команда:
 
@@ -74,7 +85,7 @@ make test TEST_FLAGS='-only-testing:WikiVibeTests/NotchEdgeTests -only-testing:W
 
 Повторное исследование публичного web-клиента и отрисованного `/docs` подтвердило браузерный PKCE, account base `/api/v1`, envelope и переход к пополнению. Новая сборка успешна; 16 тестов в `NotchEdgeTests`, `NotchFleetScopeTests`, `NotchVisibilityTests`, `NotchSizeTests` прошли без ошибок. Пересобранное приложение перезапущено, top-up action нажат без ошибки открытия браузера; сессия не появилась, суммы остались недоступными. Подписи кнопки и точные условия входа проверены через Accessibility на трёх языках; восстановлены Русский / Bottom / Large / Show on hover. Pixel-level анализ изображения недоступен; отсутствие всех дефектов вёрстки не заявляется.
 
-Вход в реальный аккаунт, восстановление его сессии, получение баланса, платежи и списание inference-кредитов не выполнялись. Правила безопасной проверки описаны в [CONTRIBUTING.md](CONTRIBUTING.md), изменения — в [CHANGELOG.md](CHANGELOG.md).
+Авторизация реализована, но на машине, где велась эта работа, не установлен Xcode: `xcodebuild` и XCTest недоступны, поэтому приложение не собиралось и не запускалось, а вход в реальный аккаунт не выполнялся. Проверено то, что можно проверить без Xcode: `Sources/Auth` и тестовый файл компилируются, а 341 утверждение из набора тестов выполнено против настоящего loopback-листенера и жизненного цикла сессии без ошибок. Баланс, расходы, платежи и списание inference-кредитов не выполнялись. Правила безопасной проверки описаны в [CONTRIBUTING.md](CONTRIBUTING.md), изменения — в [CHANGELOG.md](CHANGELOG.md).
 
 ### Лицензии
 
@@ -86,17 +97,23 @@ make test TEST_FLAGS='-only-testing:WikiVibeTests/NotchEdgeTests -only-testing:W
 
 WikiVibe is a macOS app with a screen-edge widget and a menu-bar entry.
 
-**Account integration is BLOCKED.** The native app builds and runs. Browser PKCE and account API routes are identified, but a public desktop client_id, allowed callback and native token applicability remain unconfirmed. The app does not invent balances, treat missing data as zero or claim that opening a website signs you in.
+**Account sign-in is implemented.** The app signs in to a WikiVibe account through the system browser (Authorization Code + PKCE S256) and keeps the session in the macOS keychain. Balance and spending are not read: this task is authorization only. The app does not invent amounts, treat missing data as zero or claim that opening a website signs you in.
 
 ### What works
 
 - The screen-edge widget, menu-bar entry and account window.
 - Screen-edge, size and visibility controls, retained across restarts.
 - English, Russian and Simplified Chinese interface text, with an in-app language selector.
-- System-browser navigation to `https://auth.wikivibe.dev/`, explicitly separate from application sign-in.
-- A “Top up on website” button opens confirmed `https://api.wikivibe.dev/purchase` without tokens. Browser sign-in and payment remain user-operated.
+- WikiVibe account sign-in: the browser opens `https://auth.wikivibe.dev/`, the return arrives at the app's loopback address, the code is exchanged for tokens and the session is stored in the keychain.
+- Session restore across restarts, token refresh, sign-out, and “Open WikiVibe” as a plain browser navigation rather than a sign-in.
 
-Refresh currently opens the integration requirements and makes no account request. Keychain-backed sessions, browser return, token refresh, logout, actual balance/spending and manual/background refresh with stale/error states remain BLOCKED pending desktop registration and successful schemas. One-click configuration for Codex, oh-my-pi and OpenCode is outside this stage.
+The widget shows which account is signed in. Balance and spending are deliberately absent: that is a separate task and outside this scope, as is one-click configuration for Codex, oh-my-pi and OpenCode.
+
+### How sign-in works
+
+The app is the public client `desktop`, registered server-side. The password is typed on the WikiVibe site in the browser; the app never sees it. What comes back is a one-time code bound to a PKCE verifier generated in the app and sent nowhere. The return is caught by a one-shot HTTP listener on `127.0.0.1`; the OS picks the port, because a fixed one would break sign-in whenever something else already holds it. The session (access and refresh tokens plus the account) is one keychain item; tokens never reach `UserDefaults` or a log.
+
+The `desktop` client registration lives in the WikiVibe backend (`shared_auth.desktop_redirect_uri`, default `http://127.0.0.1/callback`). Without it, `authorize` answers `INVALID_REQUEST`.
 
 ### Build and run
 
@@ -118,7 +135,9 @@ Local builds are unsigned. No signed or notarized installer is provided, and no 
 
 ### Runtime and privacy
 
-`Sources/App/AppDelegate.swift` starts the WikiVibe interface only. It does not start third-party provider discovery, agent monitors, local cost indexing, phone-link services, credential migration or automatic updates. Rendering does not call account discovery. Preference initialization does not read LM Studio configuration or migrate legacy endpoint keys into Keychain.
+`Sources/App/AppDelegate.swift` starts the WikiVibe interface and account sign-in. It does not start third-party provider discovery, agent monitors, local cost indexing, phone-link services, credential migration or automatic updates. Rendering does not call account discovery. Preference initialization does not read LM Studio configuration or migrate legacy endpoint keys into Keychain.
+
+While a sign-in is in progress the app opens one HTTP listener on `127.0.0.1` and closes it when the attempt ends. The listener answers only the registered `/callback` path, verifies `state` and rejects other methods; the port is released on every outcome — success, refusal, timeout and app termination. The password is typed on the WikiVibe site in the browser and never reaches the app; only the session tokens and the account fields (`id`, `username`, `email`) are stored.
 
 Provider libraries in the source tree are not an active WikiVibe connector. Sparkle remains a build dependency, but the updater is not instantiated. No signing identity, update feed or public signing key is configured.
 
@@ -128,19 +147,22 @@ During early development, review found an indirect account-discovery path in ren
 
 ### Backend requirements
 
-The canonical specification is [BACKEND_SPEC.md](BACKEND_SPEC.md), with complete [English](BACKEND_SPEC.en.md) and [Simplified Chinese](BACKEND_SPEC.zh-CN.md) translations. [BACKEND_CONTRACTS.md](BACKEND_CONTRACTS.md) indexes all three. Observed public responses and proposed schemas are clearly separated; proposed endpoints are not called by the app.
+The canonical specification is [BACKEND_SPEC.md](BACKEND_SPEC.md), with complete [English](BACKEND_SPEC.en.md) and [Simplified Chinese](BACKEND_SPEC.zh-CN.md) translations. [BACKEND_CONTRACTS.md](BACKEND_CONTRACTS.md) indexes all three.
 
-Connection order:
+Done:
 
-1. Register a desktop public client and confirm the browser-return or device flow and token exchange.
-2. Define account identity, token expiry, refresh rotation and session-specific revocation.
-3. Confirm account-session access to balance and spending, including currency, precision, reporting period, account/key scope, errors and polling limits.
-4. Use confirmed `https://api.wikivibe.dev/purchase`; do not pass tokens or create a payment.
-5. Have the user sign in themselves, then verify return, restart restoration, real values, refresh, stale/offline handling, expiry/logout and top-up navigation without making a payment.
+1. The public desktop client `desktop` is registered; browser return and token exchange are confirmed.
+2. Account identity, token expiry, refresh rotation and session-specific revocation are defined.
 
-Inference API keys are not account-session tokens. The API-key-protected `/v1/usage?days=7` endpoint is not a substitute for a confirmed account-session contract.
+What remains — only if balance and spending are wanted, which is out of scope today: currency and precision, reporting period and timezone, account/key scope, errors and polling limits. That is a proposal, not an existing contract, and the app calls none of those routes.
+
+Inference API keys are not account-session tokens. The API-key-protected `/v1/usage?days=7` endpoint is not a substitute for an account-session contract.
 
 ### Verification
+
+Authorization: `Sources/Auth` and `Tests/WikiVibeAuthTests.swift` compile; 341 assertions from that suite ran against the real loopback listener and the session lifecycle with zero failures. They cover a callback carrying a foreign `state`, the timeout, cancellation, refresh-token rotation, keeping the session when the server is unreachable, and signing out when it is. `make build`, `make test` and launching the app were not performed on this machine: Xcode is not installed, so `xcodebuild` and XCTest are unavailable. That is a verification limit, not a result.
+
+Backend: `go test -tags=unit ./internal/config/ ./internal/service/ ./internal/handler/` — the shared-auth suites pass.
 
 The preceding implementation passed `make build` and 63 tests across 11 isolated native/parser/updater suites. The entire test bundle compiled; the full provider/live suite was not executed. The exact regression command was:
 
@@ -154,7 +176,7 @@ The three-language update passed 16 affected native tests with zero failures. Th
 
 Fresh public-client and rendered /docs investigation confirmed browser PKCE, account base /api/v1, the envelope and top-up navigation. The new build succeeded; 16 tests in NotchEdgeTests, NotchFleetScopeTests, NotchVisibilityTests and NotchSizeTests passed with zero failures. Relaunched the rebuilt app and pressed its top-up action without a browser-opening error; no session or amounts appeared. Accessibility verified the button labels and specific sign-in prerequisites in all three languages. Restored Russian / Bottom / Large / Show on hover. Pixel-level image analysis remained unavailable; no defect-free layout claim is made.
 
-No real account sign-in, account-session restoration, balance request, payment or inference expenditure was performed. See [CONTRIBUTING.md](CONTRIBUTING.md) for safe local verification and [CHANGELOG.md](CHANGELOG.md) for changes.
+Authorization is implemented, but the machine this work was done on has no Xcode: `xcodebuild` and XCTest are unavailable, so the app was neither built nor launched and no real account sign-in was performed. What could be verified without Xcode was: `Sources/Auth` and the test file compile, and 341 assertions from the suite ran against the real loopback listener and the session lifecycle with zero failures. No balance request, payment or inference expenditure was performed. See [CONTRIBUTING.md](CONTRIBUTING.md) for safe local verification and [CHANGELOG.md](CHANGELOG.md) for changes.
 
 ### License
 
@@ -166,17 +188,23 @@ The WikiVibe icon came from a 256×256 local reference image. Larger app-icon si
 
 WikiVibe 是一款 macOS 应用，提供屏幕边缘小组件和菜单栏入口。
 
-**账号接入目前受阻（BLOCKED）。** 应用能构建、能运行。已发现浏览器 PKCE 和账号 API 路由，但公共 desktop client_id、允许的 callback 和桌面令牌适用性尚未确认。应用不会编造余额，不会把缺失数据当成零，也不会把打开网站当成登录成功。
+**账号登录已实现。** 应用通过系统浏览器完成 WikiVibe 账号登录（Authorization Code + PKCE S256），会话保存在 macOS 钥匙串中。不读取余额和支出：本任务只做授权。应用不会编造金额，不会把缺失数据当成零，也不会把打开网站当成登录成功。
 
 ### 现在能做什么
 
 - 使用屏幕边缘小组件、菜单栏入口和账号窗口。
 - 调整位置、大小和显示方式，重启后保留设置。
 - 在应用内选择 English、Русский 或简体中文。
-- 通过系统浏览器打开 `https://auth.wikivibe.dev/`。这只是访问网站，不是登录桌面应用。
-- “前往网站充值”按钮打开已确认的 `https://api.wikivibe.dev/purchase`，不传递令牌。浏览器登录和付款由用户自行操作。
+- WikiVibe 账号登录：浏览器打开 `https://auth.wikivibe.dev/`，回调回到应用的 loopback 地址，授权码换成令牌，会话写入钥匙串。
+- 重启后恢复会话、刷新令牌、退出登录；“打开 WikiVibe”只是普通浏览器跳转，不是登录。
 
-目前“刷新”只打开接入条件，不发送账号请求。Keychain 会话存储、浏览器回调、令牌刷新、退出、真实余额/支出，以及带过期数据和错误状态的手动/后台刷新，仍需桌面注册和成功结构，状态为 BLOCKED。本阶段不做 Codex、oh-my-pi 或 OpenCode 一键配置。
+小组件显示当前登录的账号。余额和支出刻意没有实现：那是另一项任务，不在本次范围内；Codex、oh-my-pi 或 OpenCode 一键配置同样不在范围内。
+
+### 登录是怎么实现的
+
+应用是服务端注册的公共客户端 `desktop`。密码在浏览器的 WikiVibe 网站上输入，应用看不到它。回来的是绑定 PKCE verifier 的一次性授权码，该 verifier 由应用生成且不发送到任何地方。回调由 `127.0.0.1` 上的一次性 HTTP 监听接收；端口由系统分配，因为固定端口一旦被其他应用占用就会让登录失败。会话（access/refresh 令牌和账号）是钥匙串中的一个条目；令牌不会进入 `UserDefaults` 或日志。
+
+`desktop` 客户端注册在 WikiVibe 后端（`shared_auth.desktop_redirect_uri`，默认 `http://127.0.0.1/callback`）。没有它，`authorize` 会返回 `INVALID_REQUEST`。
 
 ### 构建和运行
 
@@ -198,7 +226,9 @@ make run
 
 ### 启动行为和隐私
 
-`Sources/App/AppDelegate.swift` 只启动 WikiVibe 的界面，不会启动其他服务的账号发现、代理监控、本地费用索引、手机连接服务、凭据迁移或自动更新。渲染不会调用账号发现逻辑。初始化设置时，也不会读取 LM Studio 配置或把旧的自定义接口密钥迁移到 Keychain。
+`Sources/App/AppDelegate.swift` 启动 WikiVibe 的界面和账号登录，不会启动其他服务的账号发现、代理监控、本地费用索引、手机连接服务、凭据迁移或自动更新。渲染不会调用账号发现逻辑。初始化设置时，也不会读取 LM Studio 配置或把旧的自定义接口密钥迁移到 Keychain。
+
+登录期间应用会在 `127.0.0.1` 上打开一个 HTTP 监听端口，并在本次尝试结束时关闭。该监听只响应已注册的 `/callback` 路径，校验 `state`，拒绝其他方法；无论成功、被拒、超时还是应用退出，端口都会释放。密码在浏览器的 WikiVibe 网站上输入，不会进入应用；只有会话令牌和账号字段（`id`、`username`、`email`）会被保存。
 
 源码中保留提供方库不等于已经接通 WikiVibe。Sparkle 仍是构建依赖，但更新器不会创建，也没有配置更新源、签名身份、更新地址或公开签名密钥。
 
@@ -208,19 +238,19 @@ make run
 
 ### 后端还需要确认什么
 
-[俄文接口规范](BACKEND_SPEC.md)是权威版本，也提供[英文](BACKEND_SPEC.en.md)和[中文](BACKEND_SPEC.zh-CN.md)全文。[BACKEND_CONTRACTS.md](BACKEND_CONTRACTS.md)是索引。公开接口的实际观察与方案建议分开记录；应用不会调用尚未确认的建议接口。
+[俄文接口规范](BACKEND_SPEC.md)是权威版本，也提供[英文](BACKEND_SPEC.en.md)和[中文](BACKEND_SPEC.zh-CN.md)全文。[BACKEND_CONTRACTS.md](BACKEND_CONTRACTS.md)是索引。
 
-接入顺序：
+已完成：公共桌面客户端 `desktop` 已注册，浏览器回调和令牌交换已确认；账号标识、令牌有效期、刷新轮换和单会话撤销也已确定。
 
-1. 注册桌面公共客户端，明确浏览器回调或设备授权流程，以及授权码换取令牌的方式。
-2. 定义账号标识、令牌有效期、刷新时的轮换规则，以及单个会话的撤销机制。
-3. 确认账号会话如何获取余额和支出，包括币种、精度、统计周期、账号或密钥范围、错误语义和轮询限制。
-4. 使用已确认的 `https://api.wikivibe.dev/purchase`，不传令牌，不创建付款。
-5. 用户自己登录，然后验证回调、重启恢复、真实金额、刷新、离线与过期数据、会话到期、退出，以及充值页面跳转。验证时不付款。
+仅当需要余额和支出时（当前不在范围内）才需要继续补充：币种与精度、统计周期与时区、账号或密钥范围、错误语义与轮询限制。那只是建议，不是现行约定，应用不会调用这些路由。
 
-推理 API 密钥和账号会话令牌是两类不同的凭据。需要 API 密钥的 `/v1/usage?days=7` 不能代替已确认的账号会话接口。
+推理 API 密钥和账号会话令牌是两类不同的凭据。需要 API 密钥的 `/v1/usage?days=7` 不能代替账号会话接口。
 
 ### 已做的验证
+
+授权部分：`Sources/Auth` 和 `Tests/WikiVibeAuthTests.swift` 可以编译；该测试集的 341 项断言针对真实 loopback 监听器和会话生命周期执行，零失败，覆盖了携带他人 `state` 的回调、超时、取消、refresh token 轮换、服务器不可达时保留会话，以及服务器不可达时退出。本机没有执行 `make build`、`make test` 和启动应用：未安装 Xcode，`xcodebuild` 和 XCTest 不可用。这是验证限制，不是结果。
+
+后端：`go test -tags=unit ./internal/config/ ./internal/service/ ./internal/handler/`，shared-auth 相关测试通过。
 
 在语言调整前，`make build` 成功，11 组独立测试共 63 项通过。整个测试模块都完成了编译，但没有执行完整的第三方提供方测试或真实服务测试。命令如下：
 
@@ -234,7 +264,7 @@ make test TEST_FLAGS='-only-testing:WikiVibeTests/NotchEdgeTests -only-testing:W
 
 再次检查公开客户端和实际 /docs，确认浏览器 PKCE、账号 base /api/v1、响应封装和充值跳转。新构建成功；NotchEdgeTests、NotchFleetScopeTests、NotchVisibilityTests 和 NotchSizeTests 共 16 项测试全部通过。重新启动新应用并按下充值按钮，没有浏览器打开错误；应用仍无会话，不显示金额。辅助功能检查确认三语言按钮文字和具体登录条件，已恢复 Русский / Bottom / Large / Show on hover。像素级图像分析不可用，未声称布局完全没有缺陷。
 
-没有进行真实账号登录、会话恢复、余额请求、付款或推理额度消耗。安全验证规则见 [CONTRIBUTING.md](CONTRIBUTING.md)，变更记录见 [CHANGELOG.md](CHANGELOG.md)。
+授权已实现，但完成这项工作的机器没有安装 Xcode：`xcodebuild` 和 XCTest 不可用，因此应用既没有构建也没有启动，也没有进行真实账号登录。在无 Xcode 条件下能验证的部分已做：`Sources/Auth` 与测试文件可以编译，测试集中的 341 项断言针对真实 loopback 监听器和会话生命周期执行，零失败。没有进行余额请求、付款或推理额度消耗。安全验证规则见 [CONTRIBUTING.md](CONTRIBUTING.md)，变更记录见 [CHANGELOG.md](CHANGELOG.md)。
 
 ### 许可证
 

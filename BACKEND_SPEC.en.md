@@ -2,7 +2,9 @@
 
 [English](BACKEND_SPEC.en.md) · [Русский — canonical specification](BACKEND_SPEC.md) · [简体中文](BACKEND_SPEC.zh-CN.md)
 
-Status: **BLOCKED**. The backend owns the server-side decisions. This specification covers native macOS sign-in, account balance and spending, and HTTPS navigation to top-up. Agent configuration and in-app payments are out of scope. If the translations diverge, the Russian specification governs.
+Status: **sign-in implemented; balance and spending out of scope.** The backend owns the server-side decisions. This specification covers native macOS sign-in, account balance and spending, and HTTPS navigation to top-up. Agent configuration and in-app payments are out of scope. If the translations diverge, the Russian specification governs.
+
+Sign-in, session restoration, token refresh and logout are implemented and documented as an existing contract (sections 1, 1a and 2). Balance and spending remain a proposal for a later stage: the app neither requests nor displays them.
 
 ## Confirmed public observations
 
@@ -35,29 +37,38 @@ Inspected public scripts, rendered `/docs` and minimal read-only GET responses w
 
 The public tfcli loopback importer on /keys is for API-key configuration, not confirmed native account login, and is not used. Public documentation searches found no macOS registration. This does not establish that backend cannot provide it.
 
-**Exact external prerequisite:** a registered public desktop client_id and allowed callback/loopback port policy (or device flow), applicability of code exchange, audience/scopes and successful sanitized account/money schemas. Refresh/logout require lifetimes, rotation, terminal errors and current-session revocation. Money requires precision/null, period/timezone, account ownership and polling limits. Without a legitimate desktop session, Keychain restore, refresh/logout, actual amounts, polling/stale/late-response transitions remain BLOCKED. Confirmed top-up navigation is implemented independently.
+**The desktop client is registered.** Backend `origin/main` carries a fourth client, `desktop` (`shared_auth.desktop_redirect_uri`, default `http://127.0.0.1/callback`). Its validator accepts any loopback port (RFC 8252 §7.3) while pinning scheme, host and path, and `ResolveClient` binds the client id to that address. Balance and spending are outside this task, so their contracts below remain a proposal.
 
 ## 1. System-browser sign-in
 
 Purpose: establish an account session for a native public client without collecting a password or embedding a client secret. Owner: backend.
 
-**No desktop endpoint is confirmed.** Publish the method, URL, parameters and successful response schema. The app calls none of the proposed routes or flows below.
+**Existing method: Authorization Code with PKCE (S256).** Implemented and verified:
 
-**Proposal, not an existing API:** Authorization Code with PKCE (S256). Register a public client and one permitted return mechanism: HTTP loopback on localhost with an agreed port policy, or a protected registered callback. If only device authorization is supported, publish that flow instead.
+- `GET https://auth.wikivibe.dev/api/v1/auth/sso/authorize` with `client_id=desktop`, `redirect_uri=http://127.0.0.1:<port>/callback`, `state`, `code_challenge`, `code_challenge_method=S256`.
+- Without a central browser session it answers `302` to `https://auth.wikivibe.dev/login?redirect=…`; with one it answers `302` to the registered callback carrying `code` and the original `state`.
+- `POST https://api.wikivibe.dev/api/v1/auth/sso/token` with JSON `{client_id, redirect_uri, code, code_verifier}` returns `access_token`, `refresh_token`, `expires_in` (seconds), `token_type` and `user`. `grant_type` and `response_type` are not used.
+- An unregistered `client_id`/`redirect_uri` answers `400 INVALID_REQUEST`; a bad `code_verifier` answers `INVALID_CODE_VERIFIER`.
 
-Define the authorization request fields: `client_id`, `redirect_uri`, `response_type`, scopes, `state`, `code_challenge` and `code_challenge_method`. The callback must return a single-use `code` and the original `state`, or a named error. For the POST token exchange, define the content type and `grant_type`, `client_id`, `code`, `redirect_uri` and `code_verifier` fields.
+`state` is required, at most 512 bytes and visible ASCII. `code_verifier` is 43...128 base64url characters. Tokens belong exclusively in macOS Keychain; an inference API key is neither an account token nor a refresh token.
 
-Proposed token response: `access_token: string`, `token_type: "Bearer"`, `expires_in: integer seconds > 0`, `refresh_token?: string`, `scope?: string`. Confirm the actual names, envelope and optional/null semantics. Tokens belong exclusively in macOS Keychain. An inference API key is neither an account token nor a refresh token.
+## 1a. Session lifecycle
 
-Specify cancellation, invalid state/redirect/code, expired or reused code, timeout, HTTP 400/401/403/429/5xx, business error codes, safe user-facing messages and Retry-After. Define the code lifetime, attempt limits and replay protection. Until exchange succeeds and account identity is confirmed, opening the browser leaves the app unauthenticated.
+Implemented and verified: `POST https://api.wikivibe.dev/api/v1/auth/refresh` with JSON `{refresh_token}` returns `access_token`, `refresh_token`, `expires_in`, `token_type`, and the refresh token rotates, so the app stores the one it receives. `POST https://api.wikivibe.dev/api/v1/auth/logout` with `{refresh_token}` revokes that token alone, separately from revoking every session of the account. `GET https://api.wikivibe.dev/api/v1/auth/sso/me` with `Bearer` confirms the account and answers `401` once the session is revoked. The app reads `401`/`403` as an expired session rather than a network failure.
 
 ## 2. Account identity, restoration, refresh and logout
 
-Purpose: identify the session owner and define the session lifecycle. Owner: backend.
+Purpose: identify the session owner and define the session lifecycle. Owner: backend. **Implemented.**
 
-The observed GET `/api/v1/auth/me` does not establish a successful schema. Confirm the host, path, method and authentication scheme. Proposed account response: stable, non-sensitive `account_id: string`, `display_name?: string`. Define the envelope and minimum scopes. Examples must contain no real PII.
+Account: `GET https://api.wikivibe.dev/api/v1/auth/sso/me` with `Bearer` returns `{user, telegram_user}` in the standard `{code, message, data}` envelope. The app reads only `id`, `username` and `email` from `user` — enough to show who is signed in, and nothing more is stored. The envelope is authoritative: `code != 0` is an error even at HTTP 200.
 
-Refresh: confirm the POST endpoint, request schema, expiry units, rotation policy, invalidation of the previous refresh token, and handling of concurrent or repeated requests. Proposed request: `refresh_token: string`; proposed response: the token schema above. Supply the refresh-token lifetime and the terminal expired/revoked-session error.
+Refresh: `POST /api/v1/auth/refresh` with `{refresh_token}`; response `{access_token, refresh_token, expires_in, token_type}`. The refresh token rotates, so the app stores the new one — keeping the old would fail the next refresh as revoked. `expires_in` becomes an absolute expiry at receipt rather than being stored as a duration.
+
+Logout and revocation: `POST /api/v1/auth/logout` with `{refresh_token}` revokes that token alone (not every session of the account, unlike `/auth/revoke-all-sessions`). The local session is cleared from the keychain before the server call and regardless of its outcome: an unreachable server must not leave a user signed in on a machine they signed out of.
+
+Restoration: on launch the app reads the session from the keychain. An expired access token is refreshed; a revoked refresh token (`401`/`403`) signs the app out and says so. A network failure is not a sign-out: the session is kept and the account is shown with an unconfirmed marker. A keychain read failure means neither absence nor expiry.
+
+Session generation boundary: a response from a previous session is never applied after sign-out — sign-out clears the held session before the network call, and an in-flight sign-in closes its own listener.
 
 Logout/revocation: confirm endpoint, method, authentication, request/response schemas, session-specific revocation, its distinction from revoke-all, and idempotency. Local logout must remove the Keychain item and cancel in-flight fetches even when the backend is unavailable. Do not invent server revocation. A Keychain read failure does not mean a credential is absent or expired.
 
@@ -65,7 +76,9 @@ Session-generation boundary: a response from an earlier session must not be appl
 
 ## 3. Account balance and spending
 
-Purpose: obtain actual money values and spending from the server, not from local agent logs. Owner: backend.
+**Outside the current scope.** The task is authorization: the app shows the account and requests no money. What follows is a proposal for a later stage, not an existing contract. The app calls none of these routes and displays neither balance nor spending.
+
+Purpose (later stage): obtain actual money values and spending from the server, not from local agent logs. Owner: backend.
 
 **Browser account routes are identified, but successful JSON schemas and desktop-session applicability remain unconfirmed.** Clarify `/user/profile` and `/usage/stats` rather than inventing another API. Do not substitute the API-key `/v1/usage?days=7` route. Confirm scopes and compatibility with native account sessions.
 
@@ -101,8 +114,8 @@ Purpose: open the official browser flow without creating a payment in the app. O
 
 ## Minimum connection order
 
-1. Desktop public client, browser return, token exchange and safe error schema.
-2. Account identity, expiry, refresh and session-specific revocation.
-3. Account balance/spending schema, units, reporting period and polling policy.
-4. Use confirmed `https://api.wikivibe.dev/purchase` without creating a payment.
-5. The user signs in themselves. Verify return, restart restoration, real amounts, refresh, offline/stale handling, expiry/logout and top-up navigation without payment. Access to anyone else's credentials is neither required nor permitted.
+1. ~~Desktop public client, browser return, token exchange and safe error schema.~~ **Done** (section 1).
+2. ~~Account identity, expiry, refresh and session-specific revocation.~~ **Done** (sections 1a and 2).
+3. Account balance/spending schema, units, reporting period and polling policy. **Not part of the current scope.**
+4. `https://api.wikivibe.dev/purchase` remains a website button; no in-app payment.
+5. The user signs in themselves. Verify return, restart restoration, expiry and logout. Access to anyone else's credentials is neither required nor permitted.

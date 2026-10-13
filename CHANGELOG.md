@@ -2,6 +2,22 @@
 
 ## 0.1.0 — unreleased
 
+### Desktop authorization
+
+- Implemented WikiVibe account sign-in: Authorization Code with PKCE S256 against the registered `desktop` public client, in the system browser. The password is typed on the WikiVibe site; the app never sees it and no client secret ships in the binary.
+- Added a one-shot loopback listener on `127.0.0.1` that catches the browser return. The port is chosen by the OS (RFC 8252 §7.3) because a fixed one would break sign-in whenever something else holds it; only the registered scheme, host and path are accepted. `state` is verified, so a callback from a different attempt cannot settle the current one, and unrelated requests (a browser's `favicon.ico`) are answered without ending the wait.
+- Added `WikiVibeSessionStore`: the session (access and refresh tokens plus the account) is a single keychain item under service `wikivibe-desktop-session`. Tokens never reach `UserDefaults`, a log or the web-view store.
+- Added session lifecycle: restore on launch, refresh of an expired access token with the rotated refresh token stored, sign-out that clears the keychain before and regardless of the server call, and account confirmation against `/api/v1/auth/sso/me`. `401`/`403` means an expired session; a network failure keeps the session and marks it unconfirmed rather than signing the user out.
+- Replaced the prerequisite placeholder window with an account window: sign-in, cancel, sign-out, live state, and "Open WikiVibe" as a plain browser navigation. The notch row reports the signed-in account.
+- Localized the new copy into Russian, Simplified Chinese and English; removed the obsolete prerequisite keys and the dead "no confirmed data" rows.
+- Balance and spending are deliberately not implemented: this task is authorization only. The app requests no money and displays no amount.
+
+### Observed verification
+
+- Backend: added a fourth registered client `desktop` (`shared_auth.desktop_redirect_uri`, default `http://127.0.0.1/callback`) with validator, port matcher and `ResolveClient` binding. `go test -tags=unit ./internal/config/ ./internal/service/ ./internal/handler/` — shared-auth suites pass.
+- Client: `Sources/Auth` and the test file compile. 341 assertions executed against the real callback listener and the session lifecycle, zero failures. Xcode is not installed on the verifying machine, so XCTest itself could not be linked and the app was not launched; see the README for that limit.
+- Live endpoints confirmed unauthenticated: `authorize` answers `400 INVALID_REQUEST` for the unregistered desktop callback today, and the flow returns `302` once the client is registered.
+
 ### Native application
 
 - Added the native macOS application; preserved required licenses and bundled third-party notices.
@@ -21,7 +37,7 @@
 ### Backend boundary
 
 - Added the canonical Russian `BACKEND_SPEC.md` and complete English and Simplified Chinese translations, linked from `BACKEND_CONTRACTS.md`. Confirmed public evidence is separate from proposed desktop auth/session/account-money/top-up contracts.
-- Account Keychain persistence, browser return/token exchange, real balance/expenses, refresh/logout, stale-session handling and top-up remain **BLOCKED** on backend contracts.
+- Account Keychain persistence, browser return/token exchange, refresh/logout and session restore were blocked at this stage on a registered desktop client; they were implemented later in the same unreleased version (see *Desktop authorization*). Balance/expenses remain out of scope, and top-up is a website button.
 - One-button agent configuration is not implemented.
 
 ### Observed verification
@@ -50,14 +66,14 @@
 - Preserved the owner's backend-documentation rename to `BACKEND_SPEC.md`, `BACKEND_SPEC.en.md` and `BACKEND_SPEC.zh-CN.md`; updated the index and complete RU-first trilingual README.
 - Reinspected public assets, rendered `/docs`, SSO config, public settings and unauthenticated account routes. Documented browser PKCE S256, `/api/v1` base, envelope and frontend-consumed profile/spending fields separately from successful server schemas. No browser credentials were extracted, and no account, API-key, inference or payment operation was performed.
 - Confirmed official `https://api.wikivibe.dev/purchase` by navigating its documentation link. Added a localized native button using the existing system-browser pattern, without tokens or a payment request.
-- Clarified the remaining external prerequisite: a registered public desktop client_id, allowed callback/loopback or device flow, token applicability/scopes and successful account/money contracts. Native auth, Keychain restoration, refresh/logout, actual values and polling/stale/error transitions remain unimplemented and BLOCKED. No dormant connector or fake data was added.
+- Clarified the then-remaining external prerequisite: a registered public desktop client_id, allowed callback/loopback or device flow, token applicability/scopes and successful account/money contracts. No dormant connector or fake data was added. The desktop client and native authorization were added later in the same unreleased version (see *Desktop authorization*); account money contracts remain a proposal.
 - New `make build`: `BUILD SUCCEEDED`; four affected native suites: 16 tests, zero failures, `TEST SUCCEEDED`. The full test bundle compiled; no full provider/live suite ran.
 - Quit the old executable and launched the new build. Pressed its top-up action with no browser-opening error; the app remained unauthenticated with missing amounts. App-window Accessibility verified Russian, English and Simplified Chinese prerequisite and button labels. Restored Russian / Bottom / Large / Show on hover. Captured only the app-owned window; image analysis was unavailable, so pixel-level clipping is not asserted. Temporary smoke helpers and this stage's capture were removed after verification.
 
 ### Русский
 
-Добавлены русский, английский и упрощённый китайский интерфейс, выбор языка, три версии README и полной серверной спецификации. Переключение проверено в работающем приложении; китайский выбор сохранился после выхода через меню и перезапуска. Затронутая регрессия: 16 тестов, 0 ошибок. Интеграция аккаунта, реальные суммы и платежи не выполнялись; серверная граница остаётся **BLOCKED**.
+Добавлены русский, английский и упрощённый китайский интерфейс, выбор языка, три версии README и полной серверной спецификации. Переключение проверено в работающем приложении; китайский выбор сохранился после выхода через меню и перезапуска. Затронутая регрессия: 16 тестов, 0 ошибок. На том этапе вход в аккаунт ещё не был реализован; он добавлен позже в этой же невыпущенной версии (см. *Desktop authorization*). Баланс и расходы вне объёма.
 
 ### 简体中文
 
-新增英文、俄文和简体中文界面、应用内语言选择，以及三种语言的 README 和完整后端规范。实际运行时检查了语言切换；通过中文菜单退出并重新打开后，中文选择仍然保留。受影响的 16 项回归测试全部通过。没有进行账号登录、金额请求或付款，后端接入仍为 **BLOCKED**。
+新增英文、俄文和简体中文界面、应用内语言选择，以及三种语言的 README 和完整后端规范。实际运行时检查了语言切换；通过中文菜单退出并重新打开后，中文选择仍然保留。受影响的 16 项回归测试全部通过。该阶段尚未实现账号登录；登录已在同一未发布版本中补上（见 *Desktop authorization*）。余额和支出不在范围内。
