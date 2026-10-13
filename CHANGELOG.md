@@ -12,6 +12,14 @@
 - Localized the new copy into Russian, Simplified Chinese and English; removed the obsolete prerequisite keys and the dead "no confirmed data" rows.
 - Balance and spending are deliberately not implemented: this task is authorization only. The app requests no money and displays no amount.
 
+### Account balance and the website button
+
+- Added the account balance: regular, bonus and on hold, read from `/api/v1/user/profile` with the unit taken from `/api/v1/settings/public`. The unit is an operator setting, so it is read rather than assumed.
+- A missing field is not zero, and a balance that could not be read stays unread: the app reports it and keeps the session, because only the number is unknown. An explicit zero from the server is shown as data.
+- The balance refreshes on its own — every minute, and every 15 seconds while the account window is open — through one poll that exists only while a session does and stops on sign-out.
+- Retargeted "Open the website" from the issuer (`auth.wikivibe.dev`, a separate origin with its own cookie) to the panel (`api.wikivibe.dev`), which keeps a first-party session and renews it itself. The old target looked like being signed out, because the app had a session and the browser did not. The button and its hint now say what actually happens.
+- Verified in production: the widget shows the balance, and the poll is visible in the nginx access log as `settings/public` + `user/profile` pairs every ~16 seconds. 36 tests pass, zero failures.
+
 ### Observed verification
 
 - Backend: added a fourth registered client `desktop` (`shared_auth.desktop_redirect_uri`, default `http://127.0.0.1/callback`) with validator, port matcher and `ResolveClient` binding. `go test -tags=unit ./internal/config/ ./internal/service/ ./internal/handler/` — shared-auth suites pass.

@@ -6,7 +6,7 @@
 
 WikiVibe — приложение для macOS с виджетом у края экрана и меню в строке состояния.
 
-**Вход в аккаунт реализован.** Приложение входит в аккаунт WikiVibe через системный браузер (Authorization Code + PKCE S256) и хранит сессию в связке ключей macOS. Баланс и расходы не читаются: объём этой задачи — только авторизация. Приложение не показывает вымышленные суммы, не подменяет отсутствие данных нулём и не выдаёт открытие сайта за успешный вход.
+**Вход в аккаунт и баланс реализованы.** Приложение входит в аккаунт WikiVibe через системный браузер (Authorization Code + PKCE S256) и хранит сессию в связке ключей macOS. Баланс читается с сервера — обычный, бонусный и замороженный — и обновляется сам. Приложение не показывает вымышленные суммы, не подменяет отсутствие данных нулём и не выдаёт открытие сайта за успешный вход.
 
 ### Что работает
 
@@ -14,9 +14,10 @@ WikiVibe — приложение для macOS с виджетом у края �
 - Настройка края экрана, размера и видимости с сохранением после перезапуска.
 - Русский, английский и упрощённый китайский интерфейс с выбором языка в приложении.
 - Вход в аккаунт WikiVibe: браузер открывает `https://auth.wikivibe.dev/`, возврат приходит на loopback-адрес приложения, код обменивается на токены и сессия сохраняется в Keychain.
-- Восстановление сессии после перезапуска, обновление токена, выход и «Открыть WikiVibe» — обычный переход в браузере, не вход.
+- Восстановление сессии после перезапуска, обновление токена и выход.
+- Баланс аккаунта: обычный, бонусный и замороженный, в единице сервера. Обновляется раз в минуту, и раз в 15 секунд, пока открыто окно.
 
-Виджет показывает, под каким аккаунтом выполнен вход. Баланс и расходы намеренно отсутствуют: это отдельная задача, и она не входит в текущий объём. Настройка Codex, oh-my-pi и OpenCode одной кнопкой тоже не входит.
+Виджет показывает аккаунт и баланс. Расходы и статистика не читаются: это отдельная задача. Кнопка «Открыть сайт» ведёт в панель `api.wikivibe.dev`, у которой своя сессия в браузере; вход в приложении её не создаёт, поэтому сайт может попросить пароль — это не сброс входа в приложении. Настройка Codex, oh-my-pi и OpenCode одной кнопкой тоже не входит.
 
 ### Как устроен вход
 
@@ -97,7 +98,7 @@ make test TEST_FLAGS='-only-testing:WikiVibeTests/NotchEdgeTests -only-testing:W
 
 WikiVibe is a macOS app with a screen-edge widget and a menu-bar entry.
 
-**Account sign-in is implemented.** The app signs in to a WikiVibe account through the system browser (Authorization Code + PKCE S256) and keeps the session in the macOS keychain. Balance and spending are not read: this task is authorization only. The app does not invent amounts, treat missing data as zero or claim that opening a website signs you in.
+**Account sign-in and the balance are implemented.** The app signs in to a WikiVibe account through the system browser (Authorization Code + PKCE S256) and keeps the session in the macOS keychain. The balance is read from the server — regular, bonus and on hold — and refreshes on its own. The app does not invent amounts, treat missing data as zero or claim that opening a website signs you in.
 
 ### What works
 
@@ -105,9 +106,10 @@ WikiVibe is a macOS app with a screen-edge widget and a menu-bar entry.
 - Screen-edge, size and visibility controls, retained across restarts.
 - English, Russian and Simplified Chinese interface text, with an in-app language selector.
 - WikiVibe account sign-in: the browser opens `https://auth.wikivibe.dev/`, the return arrives at the app's loopback address, the code is exchanged for tokens and the session is stored in the keychain.
-- Session restore across restarts, token refresh, sign-out, and “Open WikiVibe” as a plain browser navigation rather than a sign-in.
+- Session restore across restarts, token refresh and sign-out.
+- The account balance: regular, bonus and on hold, in the server's own unit. Re-read every minute, and every 15 seconds while the window is open.
 
-The widget shows which account is signed in. Balance and spending are deliberately absent: that is a separate task and outside this scope, as is one-click configuration for Codex, oh-my-pi and OpenCode.
+The widget shows the account and its balance. Spending and usage statistics are not read: that is a separate task. “Open the website” leads to the `api.wikivibe.dev` panel, which keeps its own session in the browser; signing in here does not create it, so the site may ask for a password — that is not the app's session being lost. One-click configuration for Codex, oh-my-pi and OpenCode is also outside this scope.
 
 ### How sign-in works
 
@@ -188,7 +190,7 @@ The WikiVibe icon came from a 256×256 local reference image. Larger app-icon si
 
 WikiVibe 是一款 macOS 应用，提供屏幕边缘小组件和菜单栏入口。
 
-**账号登录已实现。** 应用通过系统浏览器完成 WikiVibe 账号登录（Authorization Code + PKCE S256），会话保存在 macOS 钥匙串中。不读取余额和支出：本任务只做授权。应用不会编造金额，不会把缺失数据当成零，也不会把打开网站当成登录成功。
+**账号登录和余额已实现。** 应用通过系统浏览器完成 WikiVibe 账号登录（Authorization Code + PKCE S256），会话保存在 macOS 钥匙串中。余额从服务器读取——普通、赠送和冻结——并自动刷新。应用不会编造金额，不会把缺失数据当成零，也不会把打开网站当成登录成功。
 
 ### 现在能做什么
 
@@ -196,9 +198,10 @@ WikiVibe 是一款 macOS 应用，提供屏幕边缘小组件和菜单栏入口�
 - 调整位置、大小和显示方式，重启后保留设置。
 - 在应用内选择 English、Русский 或简体中文。
 - WikiVibe 账号登录：浏览器打开 `https://auth.wikivibe.dev/`，回调回到应用的 loopback 地址，授权码换成令牌，会话写入钥匙串。
-- 重启后恢复会话、刷新令牌、退出登录；“打开 WikiVibe”只是普通浏览器跳转，不是登录。
+- 重启后恢复会话、刷新令牌、退出登录。
+- 账号余额：普通、赠送和冻结，使用服务器自己的单位。每分钟刷新一次；窗口打开时每 15 秒刷新一次。
 
-小组件显示当前登录的账号。余额和支出刻意没有实现：那是另一项任务，不在本次范围内；Codex、oh-my-pi 或 OpenCode 一键配置同样不在范围内。
+小组件显示账号和余额。支出和使用统计不读取：那是另一项任务。“打开网站”跳转到 `api.wikivibe.dev` 面板，它在浏览器里有自己的会话；在这里登录不会创建那个会话，所以网站可能要求输入密码——这不是应用里的登录被清除。Codex、oh-my-pi 或 OpenCode 一键配置同样不在范围内。
 
 ### 登录是怎么实现的
 
