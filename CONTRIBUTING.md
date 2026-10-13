@@ -23,7 +23,7 @@ make test TEST_FLAGS='-only-testing:WikiVibeTests/NotchEdgeTests -only-testing:W
 
 Do not read another application's credentials during verification. Never print tokens, cookies, keys or PII. Account-session tokens and inference API keys are separate credentials. Once the backend contract exists, store desktop session credentials only in macOS Keychain. Opening the browser is not evidence of authentication.
 
-Read [the backend specification](CONNECTORS_FOR_ALEXEY.en.md) before implementing a connector. Proposals are not confirmed API contracts. Isolated parser fixtures and opt-in live checks do not prove WikiVibe integration. Do not enable live-test flags or use personal credentials to run tests.
+Read [the backend specification](BACKEND_SPEC.en.md) before implementing a connector. Proposals are not confirmed API contracts. Isolated parser fixtures and opt-in live checks do not prove WikiVibe integration. Do not enable live-test flags or use personal credentials to run tests.
 
 ### Changes and publication
 
@@ -52,7 +52,7 @@ Inspect app-owned logs only; redact sensitive data before sharing:
 
 При проверке не читайте учётные данные других приложений. Не выводите токены, cookies, ключи и персональные данные. Токены сессии аккаунта и ключи inference API — разные сущности. После подтверждения серверного контракта храните сессию настольного клиента только в macOS Keychain. Открытие браузера не доказывает успешный вход.
 
-Перед реализацией коннектора прочитайте [серверную спецификацию](CONNECTORS_FOR_ALEXEY.md). Предложения не являются подтверждёнными API-контрактами. Изолированные данные для парсеров и проверки с реальными сервисами не доказывают интеграцию WikiVibe. Не включайте флаги тестов с реальными сервисами и не используйте личные учётные данные в тестах.
+Перед реализацией коннектора прочитайте [серверную спецификацию](BACKEND_SPEC.md). Предложения не являются подтверждёнными API-контрактами. Изолированные данные для парсеров и проверки с реальными сервисами не доказывают интеграцию WikiVibe. Не включайте флаги тестов с реальными сервисами и не используйте личные учётные данные в тестах.
 
 ### Изменения и публикация
 
@@ -77,7 +77,7 @@ Inspect app-owned logs only; redact sensitive data before sharing:
 
 验证时不要读取其他应用的凭据，也不要使用其他人的账号。不要输出令牌、cookies、密钥或个人信息。账号会话令牌和推理 API 密钥必须分开。后端约定确认后，桌面会话凭据只能放在 macOS Keychain 中。打开浏览器不代表登录成功。
 
-实现连接器前，先读[后端规范](CONNECTORS_FOR_ALEXEY.zh-CN.md)。建议方案不是已确认的 API。解析测试数据和真实服务检查不能证明 WikiVibe 已接通。不要启用真实服务测试开关，也不要用个人凭据运行测试。
+实现连接器前，先读[后端规范](BACKEND_SPEC.zh-CN.md)。建议方案不是已确认的 API。解析测试数据和真实服务检查不能证明 WikiVibe 已接通。不要启用真实服务测试开关，也不要用个人凭据运行测试。
 
 ### 修改和发布
 

@@ -27,8 +27,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let fleet = NotchFleet(scope: preferences.notchScope, edge: preferences.notchEdge)
         self.fleet = fleet
         fleet.onOpenSettings = { [weak self] in self?.openSettings() }
-        // There is no usage endpoint or authenticated session yet. Refresh
-        // opens the prerequisite explanation rather than fabricating a reading.
+        // Account API routes exist, but no desktop session can be established
+        // without a confirmed public client and callback. Explain rather than poll.
         fleet.onRefresh = { [weak self] in self?.openSettings() }
         fleet.onRefreshProvider = { [weak self] _ in self?.openSettings() }
         fleet.onReposition = { [weak preferences] offset in
@@ -64,7 +64,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         fleet?.setSnapshots([ProviderSnapshot(
             id: "wikivibe", displayName: "WikiVibe", glyph: .wikivibe,
             fidelity: .official,
-            status: .unsupported(L10n.t("Sign-in and balance unavailable: a desktop backend contract is required.")),
+            status: .unsupported(L10n.t("Sign-in and balance unavailable: desktop client and callback must be confirmed.")),
             windows: []
         )])
         installMenu()

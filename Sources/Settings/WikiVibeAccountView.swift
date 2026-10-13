@@ -18,14 +18,19 @@ struct WikiVibeAccountView: View {
             }
             GroupBox {
                 VStack(alignment: .leading, spacing: 10) {
-                    Label(L10n.t("Backend integration contract required"), systemImage: "exclamationmark.circle")
+                    Label(L10n.t("Desktop client and callback required"), systemImage: "exclamationmark.circle")
                         .font(.headline)
-                    Text(L10n.t("The desktop sign-in flow and account APIs have not been confirmed. This app stores no account session and displays no unverified amounts."))
+                    Text(L10n.t("Desktop client registration and an allowed callback must be confirmed. This app stores no account session and displays no unverified amounts."))
                     Button(L10n.t("Open authentication website")) {
                         let opened = NSWorkspace.shared.open(URL(string: "https://auth.wikivibe.dev/")!)
                         browserOpenFailed = !opened
                     }
                     .accessibilityLabel(L10n.t("Open authentication website"))
+                    Button(L10n.t("Top up on website")) {
+                        let opened = NSWorkspace.shared.open(URL(string: "https://api.wikivibe.dev/purchase")!)
+                        browserOpenFailed = !opened
+                    }
+                    .accessibilityLabel(L10n.t("Top up on website"))
                     Text(L10n.t("Opening the website does not sign in to this app."))
                         .font(.caption).foregroundStyle(.secondary)
                     if browserOpenFailed {

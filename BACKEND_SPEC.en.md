@@ -1,6 +1,6 @@
 # WikiVibe desktop: backend integration contracts
 
-[English](CONNECTORS_FOR_ALEXEY.en.md) · [Русский — canonical specification](CONNECTORS_FOR_ALEXEY.md) · [简体中文](CONNECTORS_FOR_ALEXEY.zh-CN.md)
+[English](BACKEND_SPEC.en.md) · [Русский — canonical specification](BACKEND_SPEC.md) · [简体中文](BACKEND_SPEC.zh-CN.md)
 
 Status: **BLOCKED**. The backend owns the server-side decisions. This specification covers native macOS sign-in, account balance and spending, and HTTPS navigation to top-up. Agent configuration and in-app payments are out of scope. If the translations diverge, the Russian specification governs.
 
@@ -11,7 +11,31 @@ Status: **BLOCKED**. The backend owns the server-side decisions. This specificat
 - Unauthenticated `GET https://auth.wikivibe.dev/api/v1/auth/me` returned HTTP 401 and `{"code":"UNAUTHORIZED","message":"Authorization header is required"}`. The successful response schema and accepted desktop credentials remain unconfirmed.
 - `GET https://auth.wikivibe.dev/api/v1/auth/sso/config` returned browser SSO configuration with issuer `https://auth.wikivibe.dev` and redirects for `api.wikivibe.dev` and `dev.wikivibe.dev`. This is not macOS client registration.
 - Unauthenticated `GET https://api.wikivibe.dev/v1/usage?days=7` returned HTTP 401 and `{"code":"API_KEY_REQUIRED","message":"Требуется API-ключ"}`. The reference client uses a Bearer API key for this route. It must not be treated as an account-session API.
-- The public frontend contains login, refresh, logout and SSO route names. Those names and browser localStorage use do not establish desktop callback support, PKCE, client registration, token schemas or an account-usage schema.
+- Reinspection of the current client confirmed PKCE S256 and state validation in browser SSO. This establishes the browser mechanism, not desktop client registration.
+
+## Current-client investigation
+
+Inspected public scripts, rendered `/docs` and minimal read-only GET responses without extracting browser storage, cookies, API keys or Authorization. No sign-in, key creation, inference or payment was performed.
+
+| Source | Observed contract |
+|---|---|
+| [Main script](https://api.wikivibe.dev/assets/index-CCkmicLd.js) | Account baseURL is origin-relative `/api/v1`: on the API host, `https://api.wikivibe.dev/api/v1`. Gateway `/v1` is separate. |
+| HTTP interceptor | Envelope `{code, message, data}`; code 0 unwraps data; a nonzero code rejects even with HTTP 200. Browser requests add Bearer access token, GET timezone and Accept-Language. |
+| [SSO config](https://api.wikivibe.dev/api/v1/auth/sso/config) | HTTP 200: enabled true, issuer `https://auth.wikivibe.dev`, API redirect `https://api.wikivibe.dev/auth/sso/callback`, dev redirect `https://dev.wikivibe.dev/api/auth/sso/callback/`. No desktop registration fields. |
+| Browser authorize | GET `https://auth.wikivibe.dev/api/v1/auth/sso/authorize` with `client_id=api`, redirect_uri, state, code_challenge and S256. The app must not reuse api or bypass the redirect allowlist. |
+| [Browser callback](https://api.wikivibe.dev/assets/SsoCallbackView-vPD5d71O.js) and main script | State validation precedes POST `/auth/sso/token`, JSON `{client_id, redirect_uri, code, code_verifier}`. The script sends neither grant_type nor response_type. This is the existing web flow, not a proposed standard OAuth contract. |
+| Browser lifecycle | Exchange consumers expect `{access_token, refresh_token?, expires_in?, user}`; user has id. POST `/auth/refresh` sends `{refresh_token}` and consumes access_token, refresh_token and expires_in in seconds. POST `/auth/logout` sends refresh_token; revoke-all-sessions is separate and must not implement local logout. Native rotation/revocation semantics remain unconfirmed. |
+| Shared browser session | `/auth/sso/session` installs a browser session; `/auth/sso/logout` ends it. Neither proves that a native app can obtain a session from a browser cookie. |
+| [Profile](https://api.wikivibe.dev/assets/user-Sw7qdUw9.js) | GET `/user/profile`; GET `/auth/me` checks identity. Without Bearer both return 401 UNAUTHORIZED. A safe GET profile in the permitted Orca page without extracting Bearer also returned 401. No success JSON observed. |
+| [Spending](https://api.wikivibe.dev/assets/usage-bJ4Ifxlm.js) | GET `/usage/stats` accepts period or start_date/end_date and optional api_key_id. Dashboard uses GET `/usage/dashboard/stats`. Both returned 401 without credentials. |
+| [Dashboard](https://api.wikivibe.dev/assets/DashboardView-BuNjK2_n.js) | UI consumes user.balance, today_actual_cost and total_actual_cost; the client supplies dates/timezone. Complete schemas, null/precision and period boundaries are unconfirmed. Browser value-or-zero fallback must not be copied. |
+| [Public settings](https://api.wikivibe.dev/api/v1/settings/public) | HTTP 200/code 0: balance_unit_name USD, balance_unit_symbol $. Documentation URL is `https://api.wikivibe.dev/docs`. Unit is a server setting, not a client assumption. |
+| [Rendered docs](https://api.wikivibe.dev/docs) | Documents gateway API-key Bearer and /v1/usage, not native registration/scopes/callback or successful account schemas. OIDC/OAuth discovery and /openapi.json returned SPA HTML; /api/v1/openapi.json returned 404. |
+| [Top-up](https://api.wikivibe.dev/purchase) | Public docs link to /purchase; clicking navigated to that HTTPS route. Browser login required. Navigation alone does not create a payment or carry desktop tokens. |
+
+The public tfcli loopback importer on /keys is for API-key configuration, not confirmed native account login, and is not used. Public documentation searches found no macOS registration. This does not establish that backend cannot provide it.
+
+**Exact external prerequisite:** a registered public desktop client_id and allowed callback/loopback port policy (or device flow), applicability of code exchange, audience/scopes and successful sanitized account/money schemas. Refresh/logout require lifetimes, rotation, terminal errors and current-session revocation. Money requires precision/null, period/timezone, account ownership and polling limits. Without a legitimate desktop session, Keychain restore, refresh/logout, actual amounts, polling/stale/late-response transitions remain BLOCKED. Confirmed top-up navigation is implemented independently.
 
 ## 1. System-browser sign-in
 
@@ -43,7 +67,7 @@ Session-generation boundary: a response from an earlier session must not be appl
 
 Purpose: obtain actual money values and spending from the server, not from local agent logs. Owner: backend.
 
-**No account-session endpoint or successful JSON schema is confirmed.** Do not substitute the API-key `/v1/usage?days=7` route. Confirm the host, GET method, route, scopes and compatibility with account-session authentication.
+**Browser account routes are identified, but successful JSON schemas and desktop-session applicability remain unconfirmed.** Clarify `/user/profile` and `/usage/stats` rather than inventing another API. Do not substitute the API-key `/v1/usage?days=7` route. Confirm scopes and compatibility with native account sessions.
 
 **Proposed schema, not an existing API:**
 
@@ -73,12 +97,12 @@ Polling: publish the minimum interval, rate limit and cache/ETag semantics. In t
 
 Purpose: open the official browser flow without creating a payment in the app. Owner: backend.
 
-**No navigation contract is confirmed.** Supply either a fixed HTTPS URL or an endpoint that returns one, with method, authentication and request/response schemas. Proposed response: `url: string`, `expires_at?: UTC ISO-8601 string`. Confirm allowed hosts, sign-in requirements, session binding and lifetime. Do not put account tokens in query strings or make a payment during verification.
+**Confirmed URL:** `https://api.wikivibe.dev/purchase`. Public documentation and the router identify top-up; navigation was exercised without payment. Browser sign-in is required. The app opens only this fixed HTTPS URL without tokens or session binding in the query. Opening it is neither desktop authentication nor payment completion.
 
 ## Minimum connection order
 
 1. Desktop public client, browser return, token exchange and safe error schema.
 2. Account identity, expiry, refresh and session-specific revocation.
 3. Account balance/spending schema, units, reporting period and polling policy.
-4. Official HTTPS top-up navigation contract.
+4. Use confirmed `https://api.wikivibe.dev/purchase` without creating a payment.
 5. The user signs in themselves. Verify return, restart restoration, real amounts, refresh, offline/stale handling, expiry/logout and top-up navigation without payment. Access to anyone else's credentials is neither required nor permitted.

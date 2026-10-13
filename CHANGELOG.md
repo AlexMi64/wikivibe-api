@@ -20,7 +20,7 @@
 
 ### Backend boundary
 
-- Added the canonical Russian `CONNECTORS_FOR_ALEXEY.md` and complete English and Simplified Chinese translations, linked from `BACKEND_CONTRACTS.md`. Confirmed public evidence is separate from proposed desktop auth/session/account-money/top-up contracts.
+- Added the canonical Russian `BACKEND_SPEC.md` and complete English and Simplified Chinese translations, linked from `BACKEND_CONTRACTS.md`. Confirmed public evidence is separate from proposed desktop auth/session/account-money/top-up contracts.
 - Account Keychain persistence, browser return/token exchange, real balance/expenses, refresh/logout, stale-session handling and top-up remain **BLOCKED** on backend contracts.
 - One-button agent configuration is not implemented.
 
@@ -44,6 +44,15 @@
 - Sanitized private workspace paths in the historical plan and recorded the owner's later source-publication authorization. No release, deployment, payment or backend mutation is authorized by this cutover.
 - Tightened product descriptions and removed the account footer. Required copyright and license notices remain in the repository and application resources.
 - Rebuilt after the text cleanup (`BUILD SUCCEEDED`) and relaunched the resulting executable. Accessibility inspection confirmed the footer was absent in Russian, English and Simplified Chinese; Russian / Bottom / Large / Show on hover remained set afterward. The string catalog parsed, GitHub rendered the trilingual README, local documentation links resolved and bundled license notices matched their source files. Screenshot analysis was unavailable (429); no pixel-level clipping claim is made.
+
+### Confirmed web contracts and native top-up navigation
+
+- Preserved the owner's backend-documentation rename to `BACKEND_SPEC.md`, `BACKEND_SPEC.en.md` and `BACKEND_SPEC.zh-CN.md`; updated the index and complete RU-first trilingual README.
+- Reinspected public assets, rendered `/docs`, SSO config, public settings and unauthenticated account routes. Documented browser PKCE S256, `/api/v1` base, envelope and frontend-consumed profile/spending fields separately from successful server schemas. No browser credentials were extracted, and no account, API-key, inference or payment operation was performed.
+- Confirmed official `https://api.wikivibe.dev/purchase` by navigating its documentation link. Added a localized native button using the existing system-browser pattern, without tokens or a payment request.
+- Clarified the remaining external prerequisite: a registered public desktop client_id, allowed callback/loopback or device flow, token applicability/scopes and successful account/money contracts. Native auth, Keychain restoration, refresh/logout, actual values and polling/stale/error transitions remain unimplemented and BLOCKED. No dormant connector or fake data was added.
+- New `make build`: `BUILD SUCCEEDED`; four affected native suites: 16 tests, zero failures, `TEST SUCCEEDED`. The full test bundle compiled; no full provider/live suite ran.
+- Quit the old executable and launched the new build. Pressed its top-up action with no browser-opening error; the app remained unauthenticated with missing amounts. App-window Accessibility verified Russian, English and Simplified Chinese prerequisite and button labels. Restored Russian / Bottom / Large / Show on hover. Captured only the app-owned window; image analysis was unavailable, so pixel-level clipping is not asserted. Temporary smoke helpers and this stage's capture were removed after verification.
 
 ### Русский
 

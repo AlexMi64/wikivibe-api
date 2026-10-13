@@ -1,6 +1,6 @@
 # WikiVibe для macOS: контракты серверной интеграции
 
-[English](CONNECTORS_FOR_ALEXEY.en.md) · [Русский — каноническая спецификация](CONNECTORS_FOR_ALEXEY.md) · [简体中文](CONNECTORS_FOR_ALEXEY.zh-CN.md)
+[English](BACKEND_SPEC.en.md) · [Русский — каноническая спецификация](BACKEND_SPEC.md) · [简体中文](BACKEND_SPEC.zh-CN.md)
 
 Статус: **BLOCKED**. Серверные решения принимает команда backend. Документ охватывает вход в нативное приложение macOS, баланс и расходы аккаунта, а также HTTPS-переход к пополнению. Настройка агентов и платежи внутри приложения в объём не входят. При расхождении переводов приоритет имеет русская спецификация.
 
@@ -11,7 +11,31 @@
 - `GET https://auth.wikivibe.dev/api/v1/auth/me` без учётных данных вернул HTTP 401 и `{"code":"UNAUTHORIZED","message":"Authorization header is required"}`. Схема успешного ответа и допустимые учётные данные настольного клиента не подтверждены.
 - `GET https://auth.wikivibe.dev/api/v1/auth/sso/config` вернул конфигурацию браузерного SSO: issuer `https://auth.wikivibe.dev`, перенаправления для `api.wikivibe.dev` и `dev.wikivibe.dev`. Это не регистрация клиента macOS.
 - `GET https://api.wikivibe.dev/v1/usage?days=7` без учётных данных вернул HTTP 401 и `{"code":"API_KEY_REQUIRED","message":"Требуется API-ключ"}`. В этом методе клиент из справочного проекта использует API-ключ Bearer. Метод нельзя считать API для сессии аккаунта.
-- Публичный интерфейс содержит названия маршрутов login, refresh, logout и SSO. Эти названия и использование localStorage в браузере не подтверждают поддержку возврата в настольное приложение, PKCE, регистрацию клиента, схему токенов или схему расходов аккаунта.
+- Повторное исследование действующего клиента подтвердило PKCE S256 и проверку `state` в браузерном SSO. Это подтверждение браузерного механизма, а не регистрация настольного клиента.
+
+## Повторное исследование действующего клиента
+
+Проверены публичные scripts, отрисованный `/docs` и минимальные GET-ответы без извлечения browser storage, cookies, API-ключей или Authorization. Вход, создание ключей, inference и платежи не выполнялись.
+
+| Источник | Подтверждённое наблюдение |
+|---|---|
+| [Основной script](https://api.wikivibe.dev/assets/index-CCkmicLd.js) | Браузерный account baseURL — `/api/v1` относительно текущего origin. На API-host это `https://api.wikivibe.dev/api/v1`; gateway `/v1` — отдельный API. |
+| HTTP interceptor | JSON-оболочка `{code, message, data}`; `code === 0` раскрывает `data`, ненулевой code — ошибка даже при HTTP 200. Браузер добавляет Bearer access token, GET `timezone` и Accept-Language. |
+| [SSO config](https://api.wikivibe.dev/api/v1/auth/sso/config) | HTTP 200: `enabled: true`, issuer `https://auth.wikivibe.dev`, API callback `https://api.wikivibe.dev/auth/sso/callback`, dev callback `https://dev.wikivibe.dev/api/auth/sso/callback/`. Поля desktop-регистрации отсутствуют. |
+| Браузерный authorize | GET `https://auth.wikivibe.dev/api/v1/auth/sso/authorize` с `client_id=api`, `redirect_uri`, `state`, `code_challenge`, `code_challenge_method=S256`. Приложению нельзя присваивать `api` или подменять разрешённый redirect. |
+| [Browser callback](https://api.wikivibe.dev/assets/SsoCallbackView-vPD5d71O.js) и основной script | После проверки state вызывается POST `/auth/sso/token` с JSON `{client_id, redirect_uri, code, code_verifier}`. Script не передаёт `grant_type` или `response_type`. Это существующий web flow, не предлагаемый стандартный OAuth контракт. |
+| Жизненный цикл браузера | Ответ обмена используется как `{access_token, refresh_token?, expires_in?, user}`; user содержит `id`. POST `/auth/refresh` передаёт `{refresh_token}` и получает `access_token`, `refresh_token`, `expires_in` в секундах. POST `/auth/logout` передаёт `{refresh_token}`; `/auth/revoke-all-sessions` — отдельный метод, не использовать для локального выхода. Серверные правила ротации/отзыва для desktop не подтверждены. |
+| Shared browser session | `/auth/sso/session` устанавливает браузерную сессию, `/auth/sso/logout` завершает её. Это не механизм получения нативной сессии из существующей browser cookie. |
+| [Профиль](https://api.wikivibe.dev/assets/user-Sw7qdUw9.js) | GET `/user/profile`; GET `/auth/me` используется для проверки аккаунта. Без Bearer оба возвращают 401 `UNAUTHORIZED`; безопасный GET профиля в разрешённой Orca-странице без чтения Bearer тоже вернул 401. Успешный JSON не наблюдался. |
+| [Расходы](https://api.wikivibe.dev/assets/usage-bJ4Ifxlm.js) | GET `/usage/stats` принимает `period` либо `start_date/end_date` и необязательный `api_key_id`; GET `/usage/dashboard/stats` используется dashboard. Без credentials оба вернули 401. |
+| [Dashboard](https://api.wikivibe.dev/assets/DashboardView-BuNjK2_n.js) | UI читает `user.balance`, `today_actual_cost`, `total_actual_cost`; дата и timezone передаются клиентом. Полнота схемы, null/precision и границы периода не подтверждены успешным ответом. Браузерная подстановка нуля при отсутствии значения не переносится в приложение. |
+| [Public settings](https://api.wikivibe.dev/api/v1/settings/public) | HTTP 200/code 0: `balance_unit_name: "USD"`, `balance_unit_symbol: "$"`; публичная документация — `https://api.wikivibe.dev/docs`. Единица — настройка сервера, не постоянная догадка клиента. |
+| [Отрисованный /docs](https://api.wikivibe.dev/docs) | Документирует gateway API-key Bearer и `/v1/usage`; desktop client/scopes/callback и account success schemas не публикует. OIDC/OAuth discovery и `/openapi.json` вернули SPA HTML; `/api/v1/openapi.json` — 404. |
+| [Пополнение](https://api.wikivibe.dev/purchase) | Публичная документация содержит переход к `/purchase`; фактическое нажатие открыло этот HTTPS route. Требуется browser login. Навигация не создаёт платёж; desktop token не передаётся в URL. |
+
+Публичный loopback `tfcli` в script относится к импорту настроек API-ключей из `/keys`, не является подтверждённым desktop account login и не используется здесь. Поиск публичной документации не дал регистрации macOS-клиента. Отсутствие такой информации в проверенных источниках не доказывает, что backend не может её предоставить.
+
+**Точный внешний prerequisite:** backend должен предоставить разрешённый публичный desktop `client_id`, callback/loopback и правила портов (либо device flow), применимость code exchange к этому клиенту, audience/scopes и успешные безопасные JSON-схемы аккаунта/денег. Для refresh/logout нужны сроки, ротация, конечные ошибки и отзыв текущей сессии. Необходимы precision/null, период/timezone, принадлежность данных аккаунту и лимиты опроса. Без этого нельзя получить legitimate desktop session, поэтому Keychain restore, refresh/logout, реальные суммы, polling/stale/late-response transitions остаются BLOCKED. Подтверждённый переход к пополнению реализован независимо.
 
 ## 1. Вход через системный браузер
 
@@ -43,7 +67,7 @@
 
 Назначение: получать реальные денежные значения и расходы с сервера, а не вычислять их по локальным журналам агентов. Ответственный: backend.
 
-**Метод для сессии аккаунта и схема успешного JSON-ответа не подтверждены.** Метод `/v1/usage?days=7`, защищённый API-ключом, не подставляется вместо них. Подтвердить host, GET-метод, маршрут, scopes и совместимость с авторизацией по сессии аккаунта.
+**Маршруты браузерного account API обнаружены, но успешные JSON-схемы и применимость к desktop-сессии не подтверждены.** Уточнить `/user/profile` и `/usage/stats` вместо создания второго неподтверждённого API. Метод `/v1/usage?days=7`, защищённый API-ключом, не подставляется вместо них. Подтвердить scopes и совместимость с авторизацией по сессии настольного клиента.
 
 **Предложение схемы, не действующий API:**
 
@@ -73,12 +97,12 @@
 
 Назначение: открыть официальный браузерный сценарий без создания платежа приложением. Ответственный: backend.
 
-**Контракт перехода не подтверждён.** Нужен постоянный HTTPS URL либо метод получения адреса с HTTP-методом, авторизацией и схемами запроса и ответа. Предлагаемый ответ: `url: string`, `expires_at?: UTC ISO-8601 string`. Подтвердить разрешённые домены, требования ко входу, привязку к сессии и срок действия. Не передавать токен аккаунта в строке запроса и не выполнять платёж при проверке.
+**Подтверждённый URL:** `https://api.wikivibe.dev/purchase`. Публичная документация и router определяют его как пополнение; фактическая навигация проверена без оплаты. Страница требует входа в браузере. Приложение открывает только этот фиксированный HTTPS URL, без токенов или session binding в query. Открытие страницы не подтверждает вход в приложение и не означает выполненный платёж.
 
 ## Минимальный порядок подключения
 
 1. Публичный настольный клиент, возврат из браузера, обмен кода на токены и безопасная схема ошибок.
 2. Идентификатор аккаунта, сроки действия, обновление токенов и отзыв отдельной сессии.
 3. Схема баланса и расходов: единицы, период и правила опроса.
-4. Официальный контракт HTTPS-перехода к пополнению.
+4. Использовать подтверждённый `https://api.wikivibe.dev/purchase`, не создавая платёж.
 5. Пользователь входит самостоятельно. Проверяются возврат, восстановление после перезапуска, реальные суммы, обновление, отсутствие сети и устаревшие данные, истечение сессии, выход и переход к пополнению без платежа. Доступ к чужим учётным данным для проверки не требуется и не допускается.
