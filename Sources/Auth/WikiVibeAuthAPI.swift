@@ -97,7 +97,11 @@ struct WikiVibeAuthAPI: WikiVibeAuthAPIInterface {
 
     private let session: URLSession
 
-    init() {
+    init(session: URLSession? = nil) {
+        if let session {
+            self.session = session
+            return
+        }
         // Ephemeral on purpose: the app authenticates with a bearer token, so
         // there is no cookie to keep, and a cache of account responses on disk
         // is exactly what a signed-out app must not leave behind.
@@ -288,6 +292,10 @@ struct WikiVibeAuthAPI: WikiVibeAuthAPIInterface {
             throw WikiVibeAuthError.transport(error.localizedDescription)
         }
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+        // A 401/403 need not use the success payload or its numeric code type.
+        if status == 401 || status == 403 {
+            throw WikiVibeAuthError.sessionExpired
+        }
         guard let envelope = try? JSONDecoder().decode(Envelope<Payload>.self, from: data) else {
             throw WikiVibeAuthError.transport("unreadable response (HTTP \(status))")
         }

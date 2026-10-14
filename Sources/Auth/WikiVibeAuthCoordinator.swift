@@ -100,21 +100,25 @@ final class WikiVibeAuthCoordinator: ObservableObject {
             return
         }
         session = stored
+        // The account view can request a balance while restoration is awaiting
+        // the network. Do not rotate the same refresh token concurrently.
+        isLoadingWallet = true
+        defer { isLoadingWallet = false }
 
         var current = stored
         if current.isExpired {
             do {
-                current = try await api.refresh(using: current)
-                session = current
-                store.save(current)
+                current = try await renewSession(current)
             } catch WikiVibeAuthError.sessionExpired {
+                guard session == current else { return }
                 await forgetLocalSession()
                 return
             } catch {
-                // Expired and unrefreshable right now: show the account, say
-                // it is unconfirmed, and try again on the next launch.
+                guard session == current else { return }
+                // Keep polling so a launch while offline recovers without restart.
                 state = .signedIn(current.account)
                 notice = L10n.t("Signed in, but the session could not be confirmed with WikiVibe.")
+                startWalletPolling()
                 return
             }
         }
@@ -122,15 +126,18 @@ final class WikiVibeAuthCoordinator: ObservableObject {
         state = .signedIn(current.account)
         do {
             let account = try await api.account(for: current)
-            session = current
+            guard session == current else { return }
             state = .signedIn(account)
             notice = nil
         } catch WikiVibeAuthError.sessionExpired {
+            guard session == current else { return }
             await forgetLocalSession()
             return
         } catch {
+            guard session == current else { return }
             notice = L10n.t("Signed in, but the session could not be confirmed with WikiVibe.")
         }
+        isLoadingWallet = false
         await loadWallet()
         startWalletPolling()
     }
@@ -142,21 +149,44 @@ final class WikiVibeAuthCoordinator: ObservableObject {
     /// window keeps showing the account and says what happened to the money row
     /// rather than quietly dropping it.
     func loadWallet() async {
-        guard let session, !isLoadingWallet else { return }
+        guard var current = session, !isLoadingWallet else { return }
         isLoadingWallet = true
         defer { isLoadingWallet = false }
         do {
-            wallet = try await api.wallet(for: session)
+            let renewedBeforeRequest = current.isExpired
+            if renewedBeforeRequest {
+                current = try await renewSession(current)
+            }
+            let result: WikiVibeWallet
+            do {
+                result = try await api.wallet(for: current)
+            } catch WikiVibeAuthError.sessionExpired where !renewedBeforeRequest {
+                // The server can expire access before the local clock does.
+                // Renew once, then retry; never loop on a refused credential.
+                current = try await renewSession(current)
+                result = try await api.wallet(for: current)
+            }
+            guard session == current else { return }
+            wallet = result
             walletError = nil
+            notice = nil
         } catch WikiVibeAuthError.sessionExpired {
+            guard session == current else { return }
             await forgetLocalSession()
-        } catch let error as WikiVibeAuthError {
-            wallet = nil
-            walletError = error.errorDescription ?? L10n.t("The balance could not be read.")
         } catch {
+            guard session == current else { return }
             wallet = nil
             walletError = error.localizedDescription
         }
+    }
+
+    /// A rotated token is adopted only while its original session is current.
+    private func renewSession(_ current: WikiVibeSession) async throws -> WikiVibeSession {
+        let renewed = try await api.refresh(using: current)
+        guard session == current else { throw CancellationError() }
+        session = renewed
+        store.save(renewed)
+        return renewed
     }
 
     /// Start re-reading the balance while signed in.

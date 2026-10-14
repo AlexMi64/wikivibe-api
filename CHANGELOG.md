@@ -2,6 +2,14 @@
 
 ## 0.1.0 — unreleased
 
+### Balance recovery after connectivity loss
+
+- Classify HTTP 401/403 before decoding the success envelope, including string-code JSON, HTML and empty error bodies. These responses no longer get stuck as `unreadable response (HTTP 401)`.
+- Renew expired access tokens during balance polling. On an unexpected authentication failure, rotate and save the session, then retry the balance once. A network failure keeps the session for the next poll; a refused refresh or repeated authentication failure requires sign-in.
+- Keep polling after an offline startup. Serialize startup renewal with balance loading and discard responses belonging to a session that was signed out.
+- Verified: 25 recovery/session/wallet tests passed, including five isolated HTTP-transport recovery scenarios; `make build` succeeded. In the running updated app, the balance loaded and manual refresh completed without a visible error. System connectivity was not disabled during this smoke check.
+- Verification limit: the broader auth suite passed before the final startup-serialization change; its later rerun stalled in the existing callback-listener cancellation test with a SwiftNIO event-loop-shutdown error. The final focused run above excludes that callback suite.
+
 ### Desktop authorization
 
 - Implemented WikiVibe account sign-in: Authorization Code with PKCE S256 against the registered `desktop` public client, in the system browser. The password is typed on the WikiVibe site; the app never sees it and no client secret ships in the binary.

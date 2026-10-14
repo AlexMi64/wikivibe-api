@@ -19,6 +19,12 @@ WikiVibe — приложение для macOS с виджетом у края �
 
 Виджет показывает аккаунт и баланс. Расходы и статистика не читаются: это отдельная задача. Кнопка «Открыть сайт» ведёт в панель `api.wikivibe.dev`, у которой своя сессия в браузере; вход в приложении её не создаёт, поэтому сайт может попросить пароль — это не сброс входа в приложении. Настройка Codex, oh-my-pi и OpenCode одной кнопкой тоже не входит.
 
+### Восстановление после обрыва интернета
+
+Исправлено зависание баланса с ошибкой `unreadable response (HTTP 401)` после восстановления связи. HTTP `401`/`403` распознаются до разбора JSON; при опросе баланса истёкший access token обновляется. Если сервер отклонил ещё действующий по локальным часам токен, приложение обновляет сессию и повторяет запрос один раз. Временная сетевая ошибка не удаляет сессию: следующий опрос снова пытается получить данные, в том числе после запуска без интернета. Если refresh token отклонён или повторный запрос снова не авторизован, требуется повторный вход.
+
+Проверены пять изолированных HTTP-сценариев восстановления и ещё 20 тестов сессии/баланса; сборка успешна. В обновлённом приложении баланс загрузился, ручное обновление прошло без ошибки. Отключение интернета на Mac не выполнялось. Ограничение более широкого callback-прогона зафиксировано в [CHANGELOG.md](CHANGELOG.md#balance-recovery-after-connectivity-loss).
+
 ### Как устроен вход
 
 Приложение — публичный клиент `desktop`, зарегистрированный на сервере. В браузере пароль вводится на сайте WikiVibe, приложение его не видит. Обратно приходит одноразовый код, привязанный к PKCE-верификатору, который сгенерирован в приложении и никуда не передаётся. Возврат принимает одноразовый HTTP-листенер на `127.0.0.1`; порт выбирает ОС, потому что фиксированный порт ломал бы вход, когда его заняло другое приложение. Сессия (access/refresh токены и аккаунт) хранится одним элементом Keychain; в `UserDefaults` и логи токены не попадают.
@@ -111,6 +117,12 @@ WikiVibe is a macOS app with a screen-edge widget and a menu-bar entry.
 
 The widget shows the account and its balance. Spending and usage statistics are not read: that is a separate task. “Open the website” leads to the `api.wikivibe.dev` panel, which keeps its own session in the browser; signing in here does not create it, so the site may ask for a password — that is not the app's session being lost. One-click configuration for Codex, oh-my-pi and OpenCode is also outside this scope.
 
+### Recovery after connectivity loss
+
+Fixed the balance getting stuck at `unreadable response (HTTP 401)` after connectivity returns. HTTP `401`/`403` is classified before JSON decoding, and expired access tokens are renewed during balance polling. If the server rejects a token that still looks valid locally, the app renews the session and retries once. Temporary network failures retain the session for the next poll, including after an offline launch. A rejected refresh token or another authentication failure on the retry requires sign-in again.
+
+Five isolated HTTP recovery scenarios and 20 session/wallet tests passed; the build succeeded. In the updated running app, the balance loaded and manual refresh completed without an error. System connectivity was not disabled. The broader callback-suite verification limit is recorded in [CHANGELOG.md](CHANGELOG.md#balance-recovery-after-connectivity-loss).
+
 ### How sign-in works
 
 The app is the public client `desktop`, registered server-side. The password is typed on the WikiVibe site in the browser; the app never sees it. What comes back is a one-time code bound to a PKCE verifier generated in the app and sent nowhere. The return is caught by a one-shot HTTP listener on `127.0.0.1`; the OS picks the port, because a fixed one would break sign-in whenever something else already holds it. The session (access and refresh tokens plus the account) is one keychain item; tokens never reach `UserDefaults` or a log.
@@ -202,6 +214,12 @@ WikiVibe 是一款 macOS 应用，提供屏幕边缘小组件和菜单栏入口�
 - 账号余额：普通、赠送和冻结，使用服务器自己的单位。每分钟刷新一次；窗口打开时每 15 秒刷新一次。
 
 小组件显示账号和余额。支出和使用统计不读取：那是另一项任务。“打开网站”跳转到 `api.wikivibe.dev` 面板，它在浏览器里有自己的会话；在这里登录不会创建那个会话，所以网站可能要求输入密码——这不是应用里的登录被清除。Codex、oh-my-pi 或 OpenCode 一键配置同样不在范围内。
+
+### 断网后的恢复
+
+修复恢复连接后余额停留在 `unreadable response (HTTP 401)` 的问题。应用在解析 JSON 前识别 HTTP `401`/`403`，并在余额轮询时刷新过期的 access token。如果服务器拒绝本地看来仍有效的令牌，应用会刷新会话并重试一次。临时网络故障不会删除会话，下次轮询会再次请求数据，包括离线启动后的恢复。如果 refresh token 被拒绝，或重试仍未通过身份验证，则需要重新登录。
+
+五个隔离的 HTTP 恢复场景和另外 20 项会话/余额测试通过，构建成功。更新后的应用已加载余额，手动刷新没有报错。验证时未断开 Mac 的网络连接。更广泛 callback 测试的验证限制记录在 [CHANGELOG.md](CHANGELOG.md#balance-recovery-after-connectivity-loss)。
 
 ### 登录是怎么实现的
 
