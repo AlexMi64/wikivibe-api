@@ -2,6 +2,20 @@
 
 ## 0.1.0 — unreleased
 
+### Account API keys and agent configuration
+
+- Added a configurable API keys card to account-window visibility, ordering, adaptive layout and Reset. The card reads all account-key pages through the existing signed-in session; remembers only the account's selected key ID, trusted API address and selected agents; and clears in-memory keys and pending requests when dismissed.
+- Separated account authentication from gateway authentication: the account credential reads `/api/v1/keys`, while the selected API key reads its gateway's `/v1/models`. Account-key 403 responses and refused gateway keys do not masquerade as expired sign-in. Requests refuse redirects and sanitize upstream errors, model IDs and diagnostic output.
+- Serialized rotating-session refresh across wallet and key requests, including already-completed rotation, and reject late key responses after sign-out or reauthentication into the same account.
+- Added Codex, oh-my-pi, OpenCode and Claude Code configuration with model catalogs and protocol-aware routing. Codex uses an opt-in `wikivibe` profile; existing Codex defaults, OMP roles and OpenCode's active model remain intact. Claude Code changes its global Anthropic transport, with a separate warning; its picker requires version 2.1.242 or newer.
+- Writes and backup restoration require a file/model preview and explicit confirmation. A canonical request/file fingerprint rejects stale previews without depending on JSON object-field order. Existing path, ownership, link, lock and concurrent-edit checks remain in place.
+- Configuration requires local Node.js 22+. The bundled adapter subset and jsonc-parser 3.3.1 / yaml 2.8.1 need no runtime download; their MIT/ISC notices ship with the app. Credentials travel to the child process only over stdin, not argv, environment or request files.
+- Show plain-text-key and secret-bearing-backup warnings, per-file partial results, and confirmed restoration that refuses later user edits. Standard config files are supported; custom homes, environment/project overrides, managed policies, SSH and WSL are not configured. A model listing does not prove inference, tools, streaming, reasoning or image support.
+- Added English, Russian and Simplified Chinese interface copy and documentation. Legacy localized README entry points now link to the maintained trilingual guide instead of claiming account/agent integration is blocked.
+- Verification: `make build` succeeded; the final focused key/session/recovery/wallet run passed 34 tests with zero failures. Regressions cover shared rotating refresh, reauthentication races, secret echoes, protocol routing, file permissions, exact apply/restore preservation, stale file previews, and reordered JSON confirmation. A separate runner smoke applied all four agents with reordered request fields, restored the original fixture exactly and refused a changed file, using only an isolated HOME and synthetic credentials.
+- Actual-app verification loaded account keys and a selected key's model catalog, opened the warning/file/model preview, and cancelled it without applying. Accessibility checks exercised all three languages, card hide/show/reorder/reset and scrolling at 420×620; screenshot pixel review was unavailable. The updated application was relaunched after the final test build.
+- Installed-CLI smoke checks in isolated homes: OMP and OpenCode exposed the synthetic catalogs; Codex accepted its runtime profile and app-server `model/list` exposed the synthetic catalog with equivalent configuration overrides. Claude Code CLI was not installed; its configuration write/restore was integration-tested. No inference, payment, key mutation or real agent-config write was performed. The full provider/live and known-stalling callback-listener suites were not rerun.
+
 ### Customizable account window
 
 - Replaced the fixed-width account column with Account, Balance, and Widget and language cards on a shared grid. Controls fill their column, labels and balance values align, and sign-in explanations expand separately.

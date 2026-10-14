@@ -28,13 +28,14 @@ struct AccountWindowLayout: Codable, Equatable {
     }
 
     enum Card: String, Codable, CaseIterable, Identifiable {
-        case account, balance, appearance
+        case account, balance, appearance, apiKeys
         var id: String { rawValue }
         var title: String {
             switch self {
             case .account: return L10n.t("Account")
             case .balance: return L10n.t("Balance")
             case .appearance: return L10n.t("Widget and language")
+            case .apiKeys: return L10n.t("API keys")
             }
         }
         var symbol: String {
@@ -42,6 +43,7 @@ struct AccountWindowLayout: Codable, Equatable {
             case .account: return "person.crop.circle"
             case .balance: return "creditcard"
             case .appearance: return "slider.horizontal.3"
+            case .apiKeys: return "key.horizontal"
             }
         }
     }

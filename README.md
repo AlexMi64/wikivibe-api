@@ -16,16 +16,32 @@ WikiVibe — приложение для macOS с виджетом у края �
 - Вход в аккаунт WikiVibe: браузер открывает `https://auth.wikivibe.dev/`, возврат приходит на loopback-адрес приложения, код обменивается на токены и сессия сохраняется в Keychain.
 - Восстановление сессии после перезапуска, обновление токена и выход.
 - Баланс аккаунта: обычный, бонусный и замороженный, в единице сервера. Обновляется раз в минуту, и раз в 15 секунд, пока открыто окно.
+- Карточка «API-ключи»: ключи авторизованного аккаунта, выбор адреса API и настройка Codex, oh-my-pi, OpenCode и Claude Code с предпросмотром и подтверждением.
 
-Виджет показывает аккаунт и баланс. Расходы и статистика не читаются: это отдельная задача. Кнопка «Открыть сайт» ведёт в панель `api.wikivibe.dev`, у которой своя сессия в браузере; вход в приложении её не создаёт, поэтому сайт может попросить пароль — это не сброс входа в приложении. Настройка Codex, oh-my-pi и OpenCode одной кнопкой тоже не входит.
+Виджет показывает аккаунт и баланс. Расходы и статистика не читаются: это отдельная задача. Кнопка «Открыть сайт» ведёт в панель `api.wikivibe.dev`, у которой своя сессия в браузере; вход в приложении её не создаёт, поэтому сайт может попросить пароль — это не сброс входа в приложении.
 
 ### Настройка окна аккаунта
 
-Окно можно растягивать; его размер и положение восстанавливаются после перезапуска. Карточки «Аккаунт», «Баланс» и «Виджет и язык» используют общую сетку, одинаковые отступы и выровненные поля, заполняющие доступную ширину. Пояснения о входе раскрываются отдельно, чтобы не перегружать окно.
+Окно можно растягивать; его размер и положение восстанавливаются после перезапуска. Карточки «Аккаунт», «Баланс», «Виджет и язык» и «API-ключи» используют общую сетку, одинаковые отступы и выровненные поля, заполняющие доступную ширину. Пояснения о входе раскрываются отдельно, чтобы не перегружать окно.
 
 Кнопка «Настроить окно» в шапке открывает выбор компоновки: адаптивная сетка до двух столбцов, вертикальная колонка или горизонтальное расположение до трёх столбцов. В узком окне столбцов становится меньше, а длинное содержимое доступно через прокрутку. Здесь же выбираются обычные/компактные отступы, порядок карточек стрелками и их видимость. Настройки сохраняются автоматически; даже если скрыть всё, настройка и сброс остаются доступны в шапке.
 
 Кнопка со стрелкой сброса возвращает исходную компоновку, плотность, порядок и видимость карточек. Она не меняет вход в аккаунт, язык, край/размер/видимость виджета или сохранённые размеры окна. Скрытие баланса не меняет его данные и периодичность обновления.
+
+### API-ключи и настройка агентов
+
+Карточка загружает ключи через сессию самого приложения, со всех страниц `GET /api/v1/keys`. Значения ключей скрыты и остаются в памяти до явной записи в настройки агента. В `UserDefaults` сохраняются только ID выбранного ключа для аккаунта, адрес API и выбранные агенты; токен входа не подставляется вместо API-ключа.
+
+Выберите активный ключ, `https://api.wikivibe.dev/v1` или `https://vapi.wikivibe.dev/v1` и нужных агентов. Кнопка «Загрузить модели и посмотреть изменения…» читает авторизованный каталог `/models` выбранного ключа и показывает модели, файлы и предупреждения. Ограничения протоколов из данных ключа учитываются; неизвестная совместимость не выдаётся за подтверждённую. Генерация и платные запросы для проверки не запускаются.
+
+- **Codex:** регистрация поставщика в `~/.codex/config.toml`, отдельные `wikivibe.config.toml` и `wikivibe-models.json`. Запуск: `codex -p wikivibe`, затем `/model`. Исходные модель и поставщик по умолчанию сохраняются. Нужна версия с профильными файлами и `model_catalog_json`; список моделей Desktop/Orca не гарантируется.
+- **oh-my-pi:** `~/.omp/agent/models.yml` или `.yaml`; существующие фильтры в `config.yml`/`.yaml` расширяются только для WikiVibe, роли моделей сохраняются. Выбор модели: `/model`.
+- **OpenCode:** `~/.config/opencode/opencode.json` или `.jsonc`; другие поставщики, активная модель и комментарии вне изменяемого блока сохраняются. Выбор: `/models`.
+- **Claude Code:** `~/.claude/settings.json`; глобальные `ANTHROPIC_BASE_URL` и `ANTHROPIC_AUTH_TOKEN` заменяются, доступные модели добавляются в `modelPicker`. Это не отдельный поставщик; предупреждение показывается до записи. Для списка моделей нужна версия 2.1.242 или новее; выбор — `/model` в новой сессии.
+
+Настройка требует локальный **Node.js 22+**: `/opt/homebrew/bin/node`, `/usr/local/bin/node` или унаследованный приложением `PATH`. Адаптеры и парсеры поставляются с приложением, ничего не скачивается при применении. Без Node.js доступен список ключей, но не запись настроек. Наличие самих агентов не проверяется. Нестандартные домашние папки агентов, настройки проекта, переменные окружения и управляемые политики могут переопределять эти стандартные файлы; SSH и WSL не настраиваются.
+
+Запись начинается только после «Подтвердить и записать файлы». Ключ записывается **открытым текстом**; файлы имеют права `0600`. Копии исходных файлов лежат рядом в `.wikivibe-gateway-backups` с правами `0700` на папку и `0600` на файлы; они тоже могут содержать секреты. Каждый файл записывается отдельно: возможен частичный результат с перечнем изменённых файлов и ошибок. «Посмотреть восстановление из копий…» также требует подтверждения и не перезаписывает последующие пользовательские правки. Сложные/неоднозначные форматы, небезопасные ссылки и конфликты не заменяются автоматически. Каталог не доказывает поддержку tools, streaming, reasoning или генерации изображений.
 
 ### Восстановление после обрыва интернета
 
@@ -106,6 +122,8 @@ make test TEST_FLAGS='-only-testing:WikiVibeTests/NotchEdgeTests -only-testing:W
 
 Лицензия проекта — [MIT](LICENSE). Обязательные уведомления об авторских правах и лицензии зависимостей сохранены в репозитории и ресурсах приложения.
 
+Настройка агентов использует встроенные jsonc-parser 3.3.1 (MIT) и yaml 2.8.1 (ISC). Тексты лицензий включены в `Sources/Resources/AgentSetup/JSONC-PARSER-LICENSE.txt` и `YAML-LICENSE.txt` и поставляются в приложении.
+
 Значок WikiVibe взят из локального изображения размером 256×256. Более крупные размеры иконки получены масштабированием, а не из оригинала высокого разрешения. Для публичного распространения бинарной сборки ещё нужны подтверждённые права на бренд и подходящий графический исходник.
 
 ## English
@@ -122,16 +140,32 @@ WikiVibe is a macOS app with a screen-edge widget and a menu-bar entry.
 - WikiVibe account sign-in: the browser opens `https://auth.wikivibe.dev/`, the return arrives at the app's loopback address, the code is exchanged for tokens and the session is stored in the keychain.
 - Session restore across restarts, token refresh and sign-out.
 - The account balance: regular, bonus and on hold, in the server's own unit. Re-read every minute, and every 15 seconds while the window is open.
+- API keys card: keys from the signed-in account, API address selection, and Codex, oh-my-pi, OpenCode and Claude Code setup with preview and confirmation.
 
-The widget shows the account and its balance. Spending and usage statistics are not read: that is a separate task. “Open the website” leads to the `api.wikivibe.dev` panel, which keeps its own session in the browser; signing in here does not create it, so the site may ask for a password — that is not the app's session being lost. One-click configuration for Codex, oh-my-pi and OpenCode is also outside this scope.
+The widget shows the account and its balance. Spending and usage statistics are not read: that is a separate task. “Open the website” leads to the `api.wikivibe.dev` panel, which keeps its own session in the browser; signing in here does not create it, so the site may ask for a password — that is not the app's session being lost.
 
 ### Customize the account window
 
-The window is resizable and restores its size and position after restart. Account, Balance, and Widget and language cards share a grid, consistent spacing and aligned controls that fill the available width. Sign-in explanations expand separately to keep the main view concise.
+The window is resizable and restores its size and position after restart. Account, Balance, Widget and language, and API keys cards share a grid, consistent spacing and aligned controls that fill the available width. Sign-in explanations expand separately to keep the main view concise.
 
 “Customize window” in the header offers an adaptive grid with up to two columns, a vertical stack, or a horizontal layout with up to three columns. Narrow windows use fewer columns and scroll when necessary. Choose comfortable/compact spacing, move cards with the arrow buttons, and hide or show them. Changes save automatically; Customize and Reset remain available in the header even when every card is hidden.
 
 The reset-arrow button restores the original layout, spacing, card order and visibility. It does not change sign-in, language, widget edge/size/visibility, or saved window dimensions. Hiding Balance does not change its data or polling schedule.
+
+### API keys and agent configuration
+
+The card reads every page of `GET /api/v1/keys` through the app's own account session. Key values are hidden and stay in memory until an explicit agent configuration write. Only the account's selected key ID, API address and selected agents are saved in `UserDefaults`; the account sign-in token is never substituted for an API key.
+
+Choose an active key, `https://api.wikivibe.dev/v1` or `https://vapi.wikivibe.dev/v1`, and the agents to configure. “Load models and preview…” reads that key's authenticated `/models` catalog and shows the models, affected files and warnings. Reported protocol restrictions are respected; unknown compatibility is not presented as verified. No inference or paid request is used to check the connection.
+
+- **Codex:** provider registration in `~/.codex/config.toml`, plus separate `wikivibe.config.toml` and `wikivibe-models.json`. Run `codex -p wikivibe`, then `/model`. Existing default model/provider choices stay intact. Requires support for profile files and `model_catalog_json`; Desktop/Orca pickers are not guaranteed.
+- **oh-my-pi:** `~/.omp/agent/models.yml` or `.yaml`; existing `config.yml`/`.yaml` filters expand only for WikiVibe, and model roles stay intact. Choose with `/model`.
+- **OpenCode:** `~/.config/opencode/opencode.json` or `.jsonc`; other providers, the active model and comments outside the changed block stay intact. Choose with `/models`.
+- **Claude Code:** `~/.claude/settings.json`; replaces global `ANTHROPIC_BASE_URL` and `ANTHROPIC_AUTH_TOKEN` and adds available models to `modelPicker`. This is not a separate provider; the warning appears before writing. The picker requires 2.1.242 or newer; choose with `/model` in a new session.
+
+Configuration requires local **Node.js 22+**, found at `/opt/homebrew/bin/node`, `/usr/local/bin/node`, or on the app's inherited `PATH`. Adapters and parsers ship with the app; applying does not download code. Without Node.js the key list remains available, but configuration writes are unavailable. Agent installation is not checked. Custom agent homes, project settings, environment variables and managed policies can override these standard files; SSH and WSL are not configured.
+
+Only “Confirm and write files” starts a write. The key is stored **in plain text**, with file permissions `0600`. Original-file backups are stored beside the configuration in `.wikivibe-gateway-backups`, using directory permissions `0700` and file permissions `0600`; backups may also contain secrets. Each file is written separately, so a partial result lists changed files and failures. “Preview restoring agent backups…” also requires confirmation and refuses to overwrite later user edits. Complex/ambiguous formats, unsafe links and conflicts are not replaced automatically. The catalog does not prove tools, streaming, reasoning or image-generation support.
 
 ### Recovery after connectivity loss
 
@@ -212,6 +246,8 @@ Authorization is implemented, but the machine this work was done on has no Xcode
 
 The project uses the [MIT license](LICENSE). Required copyright notices and dependency licenses are preserved in the repository and application resources.
 
+Agent configuration uses bundled jsonc-parser 3.3.1 (MIT) and yaml 2.8.1 (ISC). Their licenses are included in `Sources/Resources/AgentSetup/JSONC-PARSER-LICENSE.txt` and `YAML-LICENSE.txt` and ship with the app.
+
 The WikiVibe icon came from a 256×256 local reference image. Larger app-icon sizes are upscaled, not high-resolution originals. Public binary distribution still requires confirmed brand rights and suitable source artwork.
 
 ## 简体中文
@@ -228,16 +264,32 @@ WikiVibe 是一款 macOS 应用，提供屏幕边缘小组件和菜单栏入口�
 - WikiVibe 账号登录：浏览器打开 `https://auth.wikivibe.dev/`，回调回到应用的 loopback 地址，授权码换成令牌，会话写入钥匙串。
 - 重启后恢复会话、刷新令牌、退出登录。
 - 账号余额：普通、赠送和冻结，使用服务器自己的单位。每分钟刷新一次；窗口打开时每 15 秒刷新一次。
+- API 密钥卡片：读取已登录账号的密钥，选择 API 地址，为 Codex、oh-my-pi、OpenCode 和 Claude Code 配置密钥和模型，写入前预览并确认。
 
-小组件显示账号和余额。支出和使用统计不读取：那是另一项任务。“打开网站”跳转到 `api.wikivibe.dev` 面板，它在浏览器里有自己的会话；在这里登录不会创建那个会话，所以网站可能要求输入密码——这不是应用里的登录被清除。Codex、oh-my-pi 或 OpenCode 一键配置同样不在范围内。
+小组件显示账号和余额。支出和使用统计不读取：那是另一项任务。“打开网站”跳转到 `api.wikivibe.dev` 面板，它在浏览器里有自己的会话；在这里登录不会创建那个会话，所以网站可能要求输入密码——这不是应用里的登录被清除。
 
 ### 自定义账号窗口
 
-窗口可调整大小，重启后恢复大小和位置。账号、余额、小组件与语言三张卡片使用统一网格、间距和对齐方式，控件填满可用宽度。登录说明可单独展开，避免主界面堆积文字。
+窗口可调整大小，重启后恢复大小和位置。账号、余额、小组件与语言、API 密钥四张卡片使用统一网格、间距和对齐方式，控件填满可用宽度。登录说明可单独展开，避免主界面堆积文字。
 
 窗口顶部的“自定义窗口”提供最多两列的自适应网格、纵向排列和最多三列的横向排列。窄窗口自动减少列数，内容过长时可滚动。还可以选择舒适或紧凑间距，用箭头调整卡片顺序，以及隐藏或显示卡片。修改自动保存；即使隐藏所有卡片，顶部的自定义和重置按钮仍然可用。
 
 重置箭头恢复初始布局、间距、卡片顺序和显示状态，不改变登录、语言、小组件的位置/大小/显示方式，也不改变已保存的窗口大小。隐藏余额卡片不会更改余额数据或刷新频率。
+
+### API 密钥与代理配置
+
+卡片通过应用自身的账号会话读取 `GET /api/v1/keys` 的所有分页。密钥值已隐藏，仅保留在内存中，直到明确确认写入代理配置。`UserDefaults` 仅保存账号所选密钥的 ID、API 地址和代理选项；账号登录令牌绝不会代替 API 密钥。
+
+选择有效密钥、`https://api.wikivibe.dev/v1` 或 `https://vapi.wikivibe.dev/v1`，以及要配置的代理。“加载模型并预览…”读取该密钥经过认证的 `/models` 目录，并显示模型、受影响文件和警告。应用遵守密钥报告的协议限制，不会把未知兼容性描述为已验证。检查连接不会执行推理或付费请求。
+
+- **Codex：**在 `~/.codex/config.toml` 注册提供商，并创建独立的 `wikivibe.config.toml` 和 `wikivibe-models.json`。运行 `codex -p wikivibe`，再使用 `/model`。保留原有默认模型与提供商。需要支持配置档文件及 `model_catalog_json` 的版本；不保证 Desktop/Orca 的选择器支持。
+- **oh-my-pi：**使用 `~/.omp/agent/models.yml` 或 `.yaml`；仅为 WikiVibe 扩展现有 `config.yml`/`.yaml` 的筛选条件，保留模型角色。用 `/model` 选择。
+- **OpenCode：**使用 `~/.config/opencode/opencode.json` 或 `.jsonc`；保留其他提供商、当前模型和更改块之外的注释。用 `/models` 选择。
+- **Claude Code：**使用 `~/.claude/settings.json`；替换全局 `ANTHROPIC_BASE_URL` 和 `ANTHROPIC_AUTH_TOKEN`，并在 `modelPicker` 添加可用模型。这不是独立提供商，写入前会显示警告。模型选择器需要 2.1.242 或更新版本；请在新会话中用 `/model` 选择。
+
+配置需要本机 **Node.js 22+**，应用从 `/opt/homebrew/bin/node`、`/usr/local/bin/node` 或继承的 `PATH` 查找。适配器与解析器随应用提供，应用配置时不下载代码。没有 Node.js 仍可查看密钥，但无法写入代理配置。不检查代理是否已安装。自定义代理目录、项目设置、环境变量和托管策略可能覆盖标准文件；不配置 SSH 或 WSL。
+
+只有“确认并写入文件”才会开始写入。密钥以**明文**保存，文件权限为 `0600`。原始文件备份保存在配置旁的 `.wikivibe-gateway-backups`，目录权限为 `0700`，文件权限为 `0600`；备份也可能包含机密。各文件分别写入，因此可能部分成功，结果会列出已更改文件和错误。“预览恢复代理备份…”同样需要确认，并拒绝覆盖之后的用户修改。复杂或有歧义的格式、不安全链接及冲突不会被自动替换。模型目录不证明支持工具、流式响应、推理或图像生成。
 
 ### 断网后的恢复
 
@@ -314,5 +366,7 @@ make test TEST_FLAGS='-only-testing:WikiVibeTests/NotchEdgeTests -only-testing:W
 ### 许可证
 
 项目采用 [MIT 许可证](LICENSE)。必需的版权声明和依赖许可证保留在仓库及应用资源中。
+
+代理配置使用内置的 jsonc-parser 3.3.1（MIT）和 yaml 2.8.1（ISC）。许可证位于 `Sources/Resources/AgentSetup/JSONC-PARSER-LICENSE.txt` 和 `YAML-LICENSE.txt`，并随应用一起提供。
 
 WikiVibe 图标来自一张 256×256 的本地参考图。较大尺寸是放大生成的，不是高分辨率原图。公开分发二进制版本前，仍需确认品牌使用权，并准备合适的图标源文件。

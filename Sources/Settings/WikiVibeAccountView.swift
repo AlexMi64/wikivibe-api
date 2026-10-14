@@ -106,6 +106,7 @@ struct WikiVibeAccountView: View {
             case .account: accountSection
             case .balance: walletSection
             case .appearance: appearanceControls
+            case .apiKeys: WikiVibeAPIKeysView(auth: auth).id(auth.account?.id)
             }
         }
         .padding(layout.density.padding)

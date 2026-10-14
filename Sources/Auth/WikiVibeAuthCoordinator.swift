@@ -69,6 +69,9 @@ final class WikiVibeAuthCoordinator: ObservableObject {
     private let store: WikiVibeSessionStoreInterface
     private var listener: WikiVibeCallbackServer?
     private var session: WikiVibeSession?
+    private var renewal: (original: WikiVibeSession, task: Task<WikiVibeSession, Error>)?
+    private var previousSession: WikiVibeSession?
+    private var sessionGeneration = UUID()
     /// The balance poll, alive only while there is a session to poll with.
     private var walletTask: Task<Void, Never>?
 
@@ -180,13 +183,51 @@ final class WikiVibeAuthCoordinator: ObservableObject {
         }
     }
 
-    /// A rotated token is adopted only while its original session is current.
+    /// Wallet and key requests share one rotation of a refresh credential.
     private func renewSession(_ current: WikiVibeSession) async throws -> WikiVibeSession {
-        let renewed = try await api.refresh(using: current)
+        if let renewal, renewal.original == current { return try await renewal.task.value }
+        // A parallel request may already have completed the same rotation.
+        if previousSession == current, let session { return session }
         guard session == current else { throw CancellationError() }
-        session = renewed
-        store.save(renewed)
-        return renewed
+        let task = Task { @MainActor in
+            let renewed = try await api.refresh(using: current)
+            guard session == current else { throw CancellationError() }
+            session = renewed
+            previousSession = current
+            store.save(renewed)
+            return renewed
+        }
+        renewal = (current, task)
+        defer { if renewal?.original == current { renewal = nil } }
+        return try await task.value
+    }
+
+    /// Only this owner gives the account credential to the read-only panel API.
+    /// A response from a signed-out session can never repopulate the key card.
+    func accountAPIKeys(using keysAPI: WikiVibeKeysAPIInterface) async throws -> [WikiVibeAccountKey] {
+        guard var current = session, account != nil else { throw WikiVibeKeysError.notSignedIn }
+        let generation = sessionGeneration
+        do {
+            let renewedBeforeRequest = current.isExpired
+            if renewedBeforeRequest { current = try await renewSession(current) }
+            let keys: [WikiVibeAccountKey]
+            do {
+                keys = try await keysAPI.keys(accessToken: current.accessToken)
+            } catch WikiVibeKeysError.unauthorized where !renewedBeforeRequest {
+                guard generation == sessionGeneration else { throw CancellationError() }
+                current = try await renewSession(current)
+                keys = try await keysAPI.keys(accessToken: current.accessToken)
+            }
+            // A wallet refresh of this account does not invalidate a key list.
+            guard generation == sessionGeneration, session?.account.id == current.account.id, account != nil else { throw CancellationError() }
+            return keys
+        } catch WikiVibeKeysError.unauthorized {
+            if session == current { await forgetLocalSession() }
+            throw WikiVibeKeysError.notSignedIn
+        } catch WikiVibeAuthError.sessionExpired {
+            if session == current { await forgetLocalSession() }
+            throw WikiVibeKeysError.notSignedIn
+        }
     }
 
     /// Start re-reading the balance while signed in.
@@ -326,6 +367,10 @@ final class WikiVibeAuthCoordinator: ObservableObject {
     /// Drop everything this machine holds, without touching the server.
     private func forgetLocalSession() async {
         stopWalletPolling()
+        renewal?.task.cancel()
+        renewal = nil
+        previousSession = nil
+        sessionGeneration = UUID()
         session = nil
         store.clear()
         notice = nil

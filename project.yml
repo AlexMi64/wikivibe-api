@@ -42,6 +42,10 @@ targets:
           # copy any unrecognised file into the app bundle's Resources, and a
           # developer README has no business shipping to users.
           - "Vendor/**/README.md"
+          - "Resources/AgentSetup/**"
+      - path: Sources/Resources/AgentSetup
+        type: folder
+        buildPhase: resources
     dependencies:
       - package: Sparkle
       - package: SwiftNIO
