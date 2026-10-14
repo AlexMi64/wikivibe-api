@@ -155,13 +155,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard let preferences else { return }
         if accountWindow == nil {
             let window = NSWindow(
-                contentRect: NSRect(x: 0, y: 0, width: 560, height: 550),
-                styleMask: [.titled, .closable, .miniaturizable], backing: .buffered, defer: false
+                contentRect: NSRect(x: 0, y: 0, width: 820, height: 620),
+                styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false
             )
             window.title = "WikiVibe"
             window.isReleasedWhenClosed = false
             window.contentView = NSHostingView(rootView: WikiVibeAccountView(auth: auth, preferences: preferences))
-            window.center()
+            window.contentMinSize = NSSize(width: 420, height: 360)
+            if !window.setFrameUsingName("WikiVibeAccountWindow") { window.center() }
+            window.setFrameAutosaveName("WikiVibeAccountWindow")
             accountWindow = window
         }
         accountWindow?.makeKeyAndOrderFront(nil)

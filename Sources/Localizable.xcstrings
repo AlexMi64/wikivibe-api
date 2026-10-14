@@ -1,6 +1,22 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "Customize window": {"extractionState": "manual", "localizations": {"ru": {"stringUnit": {"state": "translated", "value": "Настроить окно"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "自定义窗口"}}} },
+    "Adaptive grid": {"extractionState": "manual", "localizations": {"ru": {"stringUnit": {"state": "translated", "value": "Адаптивная сетка"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "自适应网格"}}} },
+    "Vertical cards": {"extractionState": "manual", "localizations": {"ru": {"stringUnit": {"state": "translated", "value": "Вертикально"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "纵向卡片"}}} },
+    "Horizontal cards": {"extractionState": "manual", "localizations": {"ru": {"stringUnit": {"state": "translated", "value": "Горизонтально"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "横向卡片"}}} },
+    "Comfortable spacing": {"extractionState": "manual", "localizations": {"ru": {"stringUnit": {"state": "translated", "value": "Обычные отступы"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "舒适间距"}}} },
+    "Compact spacing": {"extractionState": "manual", "localizations": {"ru": {"stringUnit": {"state": "translated", "value": "Компактные отступы"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "紧凑间距"}}} },
+    "Widget and language": {"extractionState": "manual", "localizations": {"ru": {"stringUnit": {"state": "translated", "value": "Виджет и язык"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "小组件与语言"}}} },
+    "About signing in": {"extractionState": "manual", "localizations": {"ru": {"stringUnit": {"state": "translated", "value": "О входе в аккаунт"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "关于登录"}}} },
+    "All cards are hidden. Use Customize to show them again.": {"extractionState": "manual", "localizations": {"ru": {"stringUnit": {"state": "translated", "value": "Все карточки скрыты. Вернуть их можно через «Настроить окно»."}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "所有卡片均已隐藏。可通过“自定义窗口”重新显示。"}}} },
+    "Card layout": {"extractionState": "manual", "localizations": {"ru": {"stringUnit": {"state": "translated", "value": "Компоновка"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "卡片布局"}}} },
+    "Card spacing": {"extractionState": "manual", "localizations": {"ru": {"stringUnit": {"state": "translated", "value": "Плотность"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "卡片间距"}}} },
+    "Card order and visibility": {"extractionState": "manual", "localizations": {"ru": {"stringUnit": {"state": "translated", "value": "Порядок и видимость карточек"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "卡片顺序与显示"}}} },
+    "Reset window layout": {"extractionState": "manual", "localizations": {"ru": {"stringUnit": {"state": "translated", "value": "Сбросить компоновку"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "重置窗口布局"}}} },
+    "Widen the window for more columns. Narrow windows stack cards automatically.": {"extractionState": "manual", "localizations": {"ru": {"stringUnit": {"state": "translated", "value": "Расширьте окно, чтобы добавить столбцы. В узком окне карточки встают друг под другом."}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "加宽窗口可显示更多列。窄窗口会自动纵向排列卡片。"}}} },
+    "Move %@ up": {"extractionState": "manual", "localizations": {"ru": {"stringUnit": {"state": "translated", "value": "Переместить «%@» выше"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "上移%@"}}} },
+    "Move %@ down": {"extractionState": "manual", "localizations": {"ru": {"stringUnit": {"state": "translated", "value": "Переместить «%@» ниже"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "下移%@"}}} },
     "The website keeps its own sign-in. If it asks for a password, you have not signed in there in this browser yet.": {"extractionState": "manual", "localizations": {"ru": {"stringUnit": {"state": "translated", "value": "У сайта свой вход. Если он просит пароль, значит в этом браузере вы ещё не входили на сайт."}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "网站有自己的登录。如果它要求输入密码，说明你还没有在这个浏览器里登录过网站。"}}} },
     "Regular": {"extractionState": "manual", "localizations": {"ru": {"stringUnit": {"state": "translated", "value": "Обычный"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "普通"}}} },
     "On hold": {"extractionState": "manual", "localizations": {"ru": {"stringUnit": {"state": "translated", "value": "Заморожено"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "冻结中"}}} },
@@ -35519,6 +35535,7 @@
     "Done": {
       "extractionState": "manual",
       "localizations": {
+        "ru": { "stringUnit": { "state": "translated", "value": "Готово" } },
         "ja": {
           "stringUnit": {
             "state": "translated",

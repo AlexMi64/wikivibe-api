@@ -19,6 +19,14 @@ WikiVibe — приложение для macOS с виджетом у края �
 
 Виджет показывает аккаунт и баланс. Расходы и статистика не читаются: это отдельная задача. Кнопка «Открыть сайт» ведёт в панель `api.wikivibe.dev`, у которой своя сессия в браузере; вход в приложении её не создаёт, поэтому сайт может попросить пароль — это не сброс входа в приложении. Настройка Codex, oh-my-pi и OpenCode одной кнопкой тоже не входит.
 
+### Настройка окна аккаунта
+
+Окно можно растягивать; его размер и положение восстанавливаются после перезапуска. Карточки «Аккаунт», «Баланс» и «Виджет и язык» используют общую сетку, одинаковые отступы и выровненные поля, заполняющие доступную ширину. Пояснения о входе раскрываются отдельно, чтобы не перегружать окно.
+
+Кнопка «Настроить окно» в шапке открывает выбор компоновки: адаптивная сетка до двух столбцов, вертикальная колонка или горизонтальное расположение до трёх столбцов. В узком окне столбцов становится меньше, а длинное содержимое доступно через прокрутку. Здесь же выбираются обычные/компактные отступы, порядок карточек стрелками и их видимость. Настройки сохраняются автоматически; даже если скрыть всё, настройка и сброс остаются доступны в шапке.
+
+Кнопка со стрелкой сброса возвращает исходную компоновку, плотность, порядок и видимость карточек. Она не меняет вход в аккаунт, язык, край/размер/видимость виджета или сохранённые размеры окна. Скрытие баланса не меняет его данные и периодичность обновления.
+
 ### Восстановление после обрыва интернета
 
 Исправлено зависание баланса с ошибкой `unreadable response (HTTP 401)` после восстановления связи. HTTP `401`/`403` распознаются до разбора JSON; при опросе баланса истёкший access token обновляется. Если сервер отклонил ещё действующий по локальным часам токен, приложение обновляет сессию и повторяет запрос один раз. Временная сетевая ошибка не удаляет сессию: следующий опрос снова пытается получить данные, в том числе после запуска без интернета. Если refresh token отклонён или повторный запрос снова не авторизован, требуется повторный вход.
@@ -117,6 +125,14 @@ WikiVibe is a macOS app with a screen-edge widget and a menu-bar entry.
 
 The widget shows the account and its balance. Spending and usage statistics are not read: that is a separate task. “Open the website” leads to the `api.wikivibe.dev` panel, which keeps its own session in the browser; signing in here does not create it, so the site may ask for a password — that is not the app's session being lost. One-click configuration for Codex, oh-my-pi and OpenCode is also outside this scope.
 
+### Customize the account window
+
+The window is resizable and restores its size and position after restart. Account, Balance, and Widget and language cards share a grid, consistent spacing and aligned controls that fill the available width. Sign-in explanations expand separately to keep the main view concise.
+
+“Customize window” in the header offers an adaptive grid with up to two columns, a vertical stack, or a horizontal layout with up to three columns. Narrow windows use fewer columns and scroll when necessary. Choose comfortable/compact spacing, move cards with the arrow buttons, and hide or show them. Changes save automatically; Customize and Reset remain available in the header even when every card is hidden.
+
+The reset-arrow button restores the original layout, spacing, card order and visibility. It does not change sign-in, language, widget edge/size/visibility, or saved window dimensions. Hiding Balance does not change its data or polling schedule.
+
 ### Recovery after connectivity loss
 
 Fixed the balance getting stuck at `unreadable response (HTTP 401)` after connectivity returns. HTTP `401`/`403` is classified before JSON decoding, and expired access tokens are renewed during balance polling. If the server rejects a token that still looks valid locally, the app renews the session and retries once. Temporary network failures retain the session for the next poll, including after an offline launch. A rejected refresh token or another authentication failure on the retry requires sign-in again.
@@ -214,6 +230,14 @@ WikiVibe 是一款 macOS 应用，提供屏幕边缘小组件和菜单栏入口�
 - 账号余额：普通、赠送和冻结，使用服务器自己的单位。每分钟刷新一次；窗口打开时每 15 秒刷新一次。
 
 小组件显示账号和余额。支出和使用统计不读取：那是另一项任务。“打开网站”跳转到 `api.wikivibe.dev` 面板，它在浏览器里有自己的会话；在这里登录不会创建那个会话，所以网站可能要求输入密码——这不是应用里的登录被清除。Codex、oh-my-pi 或 OpenCode 一键配置同样不在范围内。
+
+### 自定义账号窗口
+
+窗口可调整大小，重启后恢复大小和位置。账号、余额、小组件与语言三张卡片使用统一网格、间距和对齐方式，控件填满可用宽度。登录说明可单独展开，避免主界面堆积文字。
+
+窗口顶部的“自定义窗口”提供最多两列的自适应网格、纵向排列和最多三列的横向排列。窄窗口自动减少列数，内容过长时可滚动。还可以选择舒适或紧凑间距，用箭头调整卡片顺序，以及隐藏或显示卡片。修改自动保存；即使隐藏所有卡片，顶部的自定义和重置按钮仍然可用。
+
+重置箭头恢复初始布局、间距、卡片顺序和显示状态，不改变登录、语言、小组件的位置/大小/显示方式，也不改变已保存的窗口大小。隐藏余额卡片不会更改余额数据或刷新频率。
 
 ### 断网后的恢复
 

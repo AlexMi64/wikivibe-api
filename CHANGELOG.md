@@ -2,6 +2,14 @@
 
 ## 0.1.0 — unreleased
 
+### Customizable account window
+
+- Replaced the fixed-width account column with Account, Balance, and Widget and language cards on a shared grid. Controls fill their column, labels and balance values align, and sign-in explanations expand separately.
+- Added a resizable window with saved size/position; adaptive (up to two columns), vertical, and horizontal (up to three columns) layouts; comfortable/compact spacing; card reorder and visibility controls. Narrow windows reduce columns and scroll instead of clipping controls.
+- Persist layout choices in `Preferences`. Customize and layout-only Reset remain reachable in the header when every card is hidden. Reset preserves authentication, language, widget preferences and window dimensions; hiding Balance does not change polling.
+- Added English, Russian and Simplified Chinese labels and accessibility descriptions for the new controls.
+- Verification: `make build` succeeded. A throwaway runtime smoke exercised column-width boundaries, card order/hide/show, JSON round-trip and duplicate-order normalization. In the actual macOS app, Accessibility actions verified vertical/adaptive/three-column horizontal geometry, compact spacing, reorder/hide/all-hidden recovery, reset preserving language/widget values, scrolling at 420-point window width, and all three interface languages. A quit/relaunch restored the 420×620 window frame, reordered cards and hidden Account card. Restored Russian, all cards and adaptive layout afterward. Geometry/control checks used macOS Accessibility; screenshot pixel review was unavailable. Authentication/backend/provider behavior was not changed; no full provider/live test run was performed.
+
 ### Balance recovery after connectivity loss
 
 - Classify HTTP 401/403 before decoding the success envelope, including string-code JSON, HTML and empty error bodies. These responses no longer get stuck as `unreadable response (HTTP 401)`.

@@ -331,6 +331,14 @@ final class Preferences: ObservableObject {
         didSet { L10n.apply(language) }
     }
 
+    @Published var accountWindowLayout: AccountWindowLayout {
+        didSet {
+            if let data = try? JSONEncoder().encode(accountWindowLayout) {
+                defaults.set(data, forKey: Keys.accountWindowLayout)
+            }
+        }
+    }
+
     /// Where the app itself shows up: Dock, menu bar, or nowhere.
     @Published var appPresence: AppPresence {
         didSet { defaults.set(appPresence.rawValue, forKey: Keys.presence) }
@@ -508,6 +516,7 @@ final class Preferences: ObservableObject {
 
     private let defaults: UserDefaults
     private enum Keys {
+        static let accountWindowLayout = "accountWindowLayout"
         /// The old off-list. Kept so a 1.9 install can invert it once.
         static let disconnected = "hiddenProviders"
         static let connected = "connectedProviders"
@@ -905,6 +914,9 @@ final class Preferences: ObservableObject {
         // Absent means never chosen, which is follow-the-Mac.
         self.language = defaults.string(forKey: L10n.languageDefaultsKey)
             .flatMap(AppLanguage.init(rawValue:)) ?? .system
+        self.accountWindowLayout = defaults.data(forKey: Keys.accountWindowLayout)
+            .flatMap { try? JSONDecoder().decode(AccountWindowLayout.self, from: $0) }
+            ?? AccountWindowLayout()
         // Absent means nothing has been shown yet, which is true of a fresh
         // install — so the current release reads as new to it.
         self.lastSeenVersion = defaults.string(forKey: Keys.lastSeenVersion)
