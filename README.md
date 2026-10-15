@@ -71,7 +71,9 @@ make run
 
 Приложение появится в `build/DerivedData/Build/Products/Debug/WikiVibe.app`. Команда `make gen` создаёт проект Xcode; `make clean` удаляет результаты сборки и сгенерированный проект. Эти файлы не входят в репозиторий. Версии зависимостей закреплены в `Package.resolved`; при первой сборке могут загружаться публичные Swift-пакеты.
 
-Локальная сборка не подписана. Подписанного установщика или сборки, прошедшей проверку Apple, нет; Makefile не содержит команд выпуска, публикации или развёртывания.
+`make dmg` собирает универсальный Release для Intel и Apple Silicon и создаёт `build/WikiVibe.dmg`. Для установки на macOS 15+ откройте образ, закройте уже запущенный WikiVibe и перетащите `WikiVibe.app` на ссылку `Applications` («Программы»). Затем извлеките образ и запускайте приложение из «Программ». Node.js 22+ для настройки агентов устанавливается отдельно и не входит в DMG.
+
+`make build` остаётся неподписанной отладочной сборкой. DMG использует локальную ad-hoc-подпись, а не Developer ID; проверки Apple (notarization) нет. Если macOS блокирует доверенную копию, после попытки запуска используйте «Системные настройки → Конфиденциальность и безопасность → Всё равно открыть». Не отключайте Gatekeeper целиком. Публикация и автоматические обновления не настроены.
 
 ### Запуск и конфиденциальность
 
@@ -195,7 +197,9 @@ With configured GitHub SSH access, use `git@github.com:AlexMi64/wikivibe-api.git
 
 The app is built at `build/DerivedData/Build/Products/Debug/WikiVibe.app`. `make gen` generates the Xcode project; `make clean` removes generated build output. The project and DerivedData are not committed. `Package.resolved` pins the dependencies; the first build may download public Swift packages.
 
-Local builds are unsigned. No signed or notarized installer is provided, and no release, deployment or publishing command is present in the Makefile.
+`make dmg` builds a universal Release for Intel and Apple Silicon at `build/WikiVibe.dmg`. To install on macOS 15+, open the image, quit any running WikiVibe, and drag `WikiVibe.app` onto the `Applications` shortcut. Eject the image and launch the app from Applications. Node.js 22+ for agent configuration is installed separately and is not included in the DMG.
+
+`make build` remains an unsigned debug build. The DMG uses local ad-hoc signing, not Developer ID, and is not notarized by Apple. If macOS blocks a trusted copy, attempt to launch it and use System Settings → Privacy & Security → Open Anyway. Do not disable Gatekeeper globally. Publishing and automatic updates are not configured.
 
 ### Runtime and privacy
 
@@ -319,7 +323,9 @@ make run
 
 应用生成在 `build/DerivedData/Build/Products/Debug/WikiVibe.app`。`make gen` 生成 Xcode 项目；`make clean` 删除构建产物和生成的项目。它们不会提交到仓库。依赖版本固定在 `Package.resolved` 中，首次构建可能需要下载公开的 Swift 软件包。
 
-本地构建不签名，也没有经过 Apple 公证的安装包。Makefile 不包含发布或部署命令。
+`make dmg` 为 Intel 与 Apple Silicon 构建通用 Release，并生成 `build/WikiVibe.dmg`。在 macOS 15 或更新版本上安装时，打开磁盘映像，退出已运行的 WikiVibe，将 `WikiVibe.app` 拖到 `Applications`（应用程序）快捷方式。弹出映像后，从“应用程序”启动。代理配置需要另行安装 Node.js 22+，DMG 不包含 Node.js。
+
+`make build` 仍生成未签名的调试版本。DMG 使用本地 ad-hoc 签名，而非 Developer ID，且未经过 Apple 公证。如果 macOS 阻止可信副本，请先尝试启动，再到“系统设置 → 隐私与安全性 → 仍要打开”允许运行。不要全局禁用 Gatekeeper。尚未配置发布或自动更新。
 
 ### 启动行为和隐私
 

@@ -2,6 +2,11 @@
 
 ## 0.1.0 — unreleased
 
+### Local macOS installer
+
+- Added `make release` and `make dmg`: a universal arm64/x86_64 Release app for macOS 15+, packaged as `build/WikiVibe.dmg` with an Applications shortcut. Dependency licenses and notices are retained inside the installed bundle. Packaging uses ad-hoc signing, not Developer ID; notarization, publishing and automatic updates remain unconfigured. Node.js 22+ for agent configuration is a separate prerequisite.
+- Verification: the universal Release build, deep/strict code-signature checks and DMG checksum verification passed. Mounted the image read-only, checked its Applications shortcut and copied the app into an isolated installation directory. The copied app launched on the Intel host, displayed its account window and completed the API-key model Preview/Cancel path without a configuration write. An Apple Silicon runtime was not exercised.
+
 ### Account API keys and agent configuration
 
 - Added a configurable API keys card to account-window visibility, ordering, adaptive layout and Reset. The card reads all account-key pages through the existing signed-in session; remembers only the account's selected key ID, trusted API address and selected agents; and clears in-memory keys and pending requests when dismissed.
