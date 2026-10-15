@@ -47,6 +47,12 @@ function responseAPI(value, model) {
   if (allowed.includes('openai_responses')) return true;
   fail('API-ключ не разрешает протокол OpenAI для этого агента.');
 }
+function isImageModel(id) { return id.startsWith('gpt-image-'); }
+function modelsForAgent(agentId, value) {
+  const responses = !Array.isArray(value.protocols) || value.protocols.includes('openai_responses');
+  const carrier = value.models.some(({ id }) => /^gpt-(?:[5-9]|[1-9]\d)(?:[.-]|$)/.test(id));
+  return value.models.filter(({ id }) => !isImageModel(id) || (agentId === 'omp' && responses && carrier));
+}
 function object(value) { return value !== null && typeof value === 'object' && !Array.isArray(value); }
 // Refusal used whenever the plugin may not touch a file the user changed after applying.
 function conflict(label) {
@@ -96,8 +102,7 @@ function openCodeConfig(text, value) {
     const models = Object.fromEntries(value.models.map(({ id: model }) => [model, {
       ...entry?.models?.[model],
       name: entry?.models?.[model]?.name ?? model,
-      provider: { npm: responseAPI(value, model) ? '@ai-sdk/openai' : '@ai-sdk/openai-compatible' },
-      ...(model.startsWith('gpt-image-') ? { tool_call: false, modalities: { input: ['text', 'image'], output: ['image'] } } : {})
+      provider: { npm: responseAPI(value, model) ? '@ai-sdk/openai' : '@ai-sdk/openai-compatible' }
     }]));
     set(['provider', id], {
       ...entry,
@@ -237,6 +242,22 @@ function addYamlAllowlist(text, models, providerId = 'wikivibe') {
     const merged = remove ? entries.filter(item => !values.includes(item)) : [...entries, ...values.filter(item => !entries.includes(item))];
     if (JSON.stringify(merged) !== JSON.stringify(entries)) next = yamlSet(next, [key], [JSON.stringify(merged)]);
   }
+  return next;
+}
+function ompConfig(text, value, merge = false, providerId = 'wikivibe') {
+  let next = addYamlAllowlist(text, value.models, providerId);
+  const image = value.models.find(({ id }) => isImageModel(id));
+  if (!image || merge) return next;
+  const config = parseDocument(next || '{}', { uniqueKeys: true });
+  if (config.errors.length || config.anchors?.size) fail('oh-my-pi: некорректный YAML; файл не изменён.');
+  let parsed;
+  try { parsed = config.toJS({ maxAliasCount: 0 }) ?? {}; }
+  catch { fail('oh-my-pi: YAML aliases не поддерживаются.'); }
+  if (!object(parsed)) fail('oh-my-pi: корень конфигурации должен быть отображением.');
+  if (own(parsed, 'modelRoles') && !object(parsed.modelRoles)) fail('oh-my-pi: modelRoles должен быть отображением.');
+  if (!own(parsed.modelRoles ?? {}, 'image')) next = yamlSet(next, ['modelRoles', 'image'], [JSON.stringify(`${providerId}/${image.id}`)]);
+  if (own(parsed, 'generate_image') && !object(parsed.generate_image)) fail('oh-my-pi: generate_image должен быть отображением.');
+  if (!own(parsed.generate_image ?? {}, 'enabled')) next = yamlSet(next, ['generate_image', 'enabled'], ['true']);
   return next;
 }
 function tomlConfig(text, value, root, merge = false) {
@@ -381,7 +402,7 @@ function render(agent, rel, bytes, value, root, merge = false, providerId = 'wik
     return tomlConfig(text, value, root, merge);
   }
   if (agent.id === 'omp') {
-    if (/\/config\.ya?ml$/.test(rel)) return addYamlAllowlist(text, value.models, providerId);
+    if (/\/config\.ya?ml$/.test(rel)) return ompConfig(text, value, merge, providerId);
     return ompModels(text, value);
   }
   const config = parseJSON(bytes);
@@ -545,21 +566,25 @@ async function plans(root, agents, value, restore = false) {
           }
           continue;
         }
+        const agentValue = { ...value, models: modelsForAgent(agent.id, value) };
+        if (!agentValue.models.length) fail(`${agent.label}: каталог не содержит совместимых моделей.`);
         const filters = agent.id === 'omp' && /\/config\.ya?ml$/.test(rel);
         const baseline = backup && !merge ? backup.record.original === null ? null : Buffer.from(backup.record.original.base64, 'base64') : current?.bytes ?? null;
         if (filters) {
           const hasFilters = ['enabledModels', 'enabledProviders', 'disabledProviders'].some(key => yamlList(baseline?.toString('utf8') ?? '', key) !== null);
-          if (!hasFilters) { if (backup && !merge) agentPlans.push({ agent, rel, target, current, backup, cleanup: true }); continue; }
+          const hasImageRole = agentValue.models.some(({ id }) => isImageModel(id));
+          if (!hasFilters && !hasImageRole) { if (backup && !merge) agentPlans.push({ agent, rel, target, current, backup, cleanup: true }); continue; }
         }
         let providerId = 'wikivibe';
-        if (agent.id === 'omp' && filters) {
+        if (agent.id === 'omp') {
           const modelPlan = agentPlans.find(plan => /\/models\.ya?ml$/.test(plan.rel));
           if (modelPlan) {
             const config = parseDocument(modelPlan.bytes.toString('utf8')).toJS({ maxAliasCount: 0 });
-            providerId = Object.entries(config.providers).find(([, entry]) => wikiRoute(entry?.baseUrl))[0];
+            const route = Object.entries(config.providers ?? {}).find(([, entry]) => wikiRoute(entry?.baseUrl));
+            if (route) providerId = route[0];
           }
         }
-        const bytes = Buffer.from(render(agent, rel, baseline, value, root, merge, providerId));
+        const bytes = Buffer.from(render(agent, rel, baseline, agentValue, root, merge, providerId));
         const backupDir = path.dirname(backupPath(root, target));
         if (await directories(root, backupDir) && (await fs.lstat(backupDir)).mode % 512 !== 0o700) fail('Каталог резервных копий должен иметь права 0700.');
         agentPlans.push({ agent, rel, target, current, backup, bytes, filters, merge });
@@ -656,7 +681,7 @@ export async function applyAgents(agentIds, value, { home = homedir() } = {}) {
       }
     }
     const appliedIds = new Set(applied.map(item => item.agentId));
-    return { applied, failures: blocked, outcomes: agents.filter(agent => appliedIds.has(agent.id) && !blocked.some(item => item.agentId === agent.id)).map(agent => ({ agentId: agent.id, modelCount: value.models.length })) };
+    return { applied, failures: blocked, outcomes: agents.filter(agent => appliedIds.has(agent.id) && !blocked.some(item => item.agentId === agent.id)).map(agent => ({ agentId: agent.id, modelCount: modelsForAgent(agent.id, value).length })) };
   });
 }
 export async function restoreAgents(agentIds, { home = homedir() } = {}) {

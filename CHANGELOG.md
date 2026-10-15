@@ -2,6 +2,13 @@
 
 ## 0.1.0 — unreleased
 
+### Image-generation transport
+
+- Configured `gpt-image-*` for oh-my-pi through `modelRoles.image` and the Responses API's `image_generation` tool path only when Responses and a GPT-5+ text carrier are available. Enables the otherwise-disabled `generate_image` tool only when its setting is absent. Existing roles, explicit disables and subsequent user removals remain intact during reapplication.
+- Omitted `gpt-image-*` from generated Codex, OpenCode and Claude Code configurations because their current adapters do not wire up an image-generation tool. Direct Image API routing was not enabled: the public gateway route check returned HTTP 404. No paid inference request was submitted.
+- Verification: all 15 `WikiVibeKeysTests` passed, including role preservation/removal, protocol/carrier restrictions and restoration of originally absent files. A local synthetic endpoint captured native oh-my-pi 18.10.2 sending `/v1/responses` with carrier `gpt-6.1-sol`, `tools: [{type: "image_generation", model: "gpt-image-2"}]` and the image tool choice. The fixture deliberately rejected the request; this proves request construction, not production gateway forwarding or generated image output.
+- Preview 5 uses build number 5. `make dmg` produced a universal arm64/x86_64 build; deep/strict all-architecture signature checks and `hdiutil verify` passed. The app launched from the mounted DMG and finished initialization. Distribution remains locally ad-hoc signed, without Developer ID or notarization.
+
 ### Provider-specific Codex reasoning
 
 - Added exact provider presets and defaults: DeepSeek V4.1 Flash (`none`, `low`, `high`, `max`; default `high`, both catalog ID forms), Gemini 3.8 Flash (`low`, `medium`, `high`; default `medium`), Gemini 3.1 Flash-Lite Preview (family presets `minimal`, `low`, `medium`, `high`; default `minimal`), and GLM 5.3 / 5.3 Flash (`low`, `high`, `max`; default `max`). GPT presets are unchanged; unknown and image IDs remain conservative. Sources are linked in the adapter and trilingual README.
