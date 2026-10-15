@@ -195,6 +195,7 @@ enum NotchLayout {
     static let barToUsed     = Design.px(17.8)
     static let blockSpacing  = Design.px(20)
     static let moneyBarHeight = Design.px(12)
+    static let topUpButtonHeight: CGFloat = 28
     static let moneyBarToStats = Design.px(14)
     static let moneyStatGap = Design.px(4)
     static let usageDetailIdentityGap = Design.px(4)
@@ -395,10 +396,12 @@ enum NotchLayout {
                            localLedgerRows: Int = 0,
                            compactRowCount: Int = 0,
                            showsDeepSeekPricing: Bool = true,
-                           costRows: Int = 0) -> CGFloat {
+                           costRows: Int = 0,
+                           hasTopUpAction: Bool = false) -> CGFloat {
         let header = max(glyphSize, cardTitleLineHeight)
             + (hasPlan ? cardBodyLineHeight : 0)
         var height = 2 * cardPadding + header
+        if hasTopUpAction { height += blockSpacing + topUpButtonHeight }
 
         // The blocked line sits under the header, above everything else — it
         // is the reading that stops you working, so it leads.

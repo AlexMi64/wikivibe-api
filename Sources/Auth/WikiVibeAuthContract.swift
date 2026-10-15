@@ -43,6 +43,9 @@ enum WikiVibeAuthContract {
     /// had a session, the browser did not, and the page asked for a password.
     static var panel: URL { api }
 
+    /// Browser-owned checkout; account credentials never travel in this URL.
+    static var topUp: URL { panel.appendingPathComponent("purchase") }
+
     /// The registered loopback callback. Host and path are fixed by the
     /// server's validation; only the port is chosen at runtime.
     static let callbackHost = "127.0.0.1"

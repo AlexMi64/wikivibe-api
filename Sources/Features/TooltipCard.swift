@@ -1102,6 +1102,7 @@ struct TooltipCard: View {
     /// A tap on a session row jumps to that session's terminal — nil leaves
     /// the rows as plain text.
     var onFocusSession: ((pid_t) -> Void)? = nil
+    var onTopUp: (() -> Void)? = nil
     @AppStorage(Preferences.showUsagePaceKey) private var showUsagePace = false
 
     /// The phase a local model is in, and the queue behind it, for the header.
@@ -1131,7 +1132,8 @@ struct TooltipCard: View {
                 localLedgerRows: snapshot.localLedgerRowCount,
             compactRowCount: snapshot.compactRowCount,
             showsDeepSeekPricing: deepSeekPricingEnabled,
-            costRows: costRows
+            costRows: costRows,
+            hasTopUpAction: onTopUp != nil
         )
     }
 
@@ -1164,6 +1166,21 @@ struct TooltipCard: View {
                     }
                     if costRows > 0, let model = CostModels.model(for: snapshot.id) {
                         CostSection(model: model, rows: costRows)
+                    }
+                    if let onTopUp {
+                        Button(action: onTopUp) {
+                            Label(L10n.t("Top up"), systemImage: "plus.circle.fill")
+                                .font(Typography.cardBody)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: NotchLayout.topUpButtonHeight)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(Palette.textPrimary)
+                        .background(.white.opacity(0.12), in: RoundedRectangle(cornerRadius: 7))
+                        .padding(.top, NotchLayout.blockSpacing)
+                        .help(L10n.t("Open the WikiVibe top-up page in your browser. The website may ask you to sign in."))
+                        .accessibilityIdentifier("widget.topUp")
                     }
                 }
                 // An identity, so one provider's rows are never interpolated

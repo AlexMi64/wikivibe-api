@@ -1,6 +1,9 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "Top up": {"extractionState":"manual","localizations":{"ru":{"stringUnit":{"state":"translated","value":"Пополнить"}},"zh-Hans":{"stringUnit":{"state":"translated","value":"充值"}}}},
+    "Open the WikiVibe top-up page in your browser. The website may ask you to sign in.": {"extractionState":"manual","localizations":{"ru":{"stringUnit":{"state":"translated","value":"Открыть страницу пополнения WikiVibe в браузере. Сайт может попросить войти в аккаунт."}},"zh-Hans":{"stringUnit":{"state":"translated","value":"在浏览器中打开 WikiVibe 充值页面。网站可能要求登录。"}}}},
+    "Open https://api.wikivibe.dev/purchase in your browser to top up your balance.": {"extractionState":"manual","localizations":{"ru":{"stringUnit":{"state":"translated","value":"Чтобы пополнить баланс, откройте https://api.wikivibe.dev/purchase в браузере."}},"zh-Hans":{"stringUnit":{"state":"translated","value":"请在浏览器中打开 https://api.wikivibe.dev/purchase 为余额充值。"}}}},
     "Account keys": {"extractionState":"manual","localizations":{"ru":{"stringUnit":{"state":"translated","value":"Ключи аккаунта"}},"zh-Hans":{"stringUnit":{"state":"translated","value":"账号密钥"}}}},
     "API keys loaded: %lld": {"extractionState":"manual","localizations":{"ru":{"stringUnit":{"state":"translated","value":"Загружено API-ключей: %lld"}},"zh-Hans":{"stringUnit":{"state":"translated","value":"已加载 API 密钥：%lld"}}}},
     "Choose an API key": {"extractionState":"manual","localizations":{"ru":{"stringUnit":{"state":"translated","value":"Выберите API-ключ"}},"zh-Hans":{"stringUnit":{"state":"translated","value":"选择 API 密钥"}}}},

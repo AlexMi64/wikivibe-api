@@ -164,7 +164,8 @@ struct NotchRootView: View {
                         deepSeekPricingEnabled: model.deepSeekPricingEnabled,
                         deepSeekPricingSchedule: model.deepSeekPricingSchedule,
                         tailOffset: tooltipTailOffset(index: index, snapshot: snapshot),
-                        onFocusSession: model.onFocusSession
+                        onFocusSession: model.onFocusSession,
+                        onTopUp: model.topUpAction(for: snapshot)
                     )
                         // Deliberately *no* `.id` here: the card is one object
                         // that travels and resizes between cells, which reads
@@ -594,7 +595,8 @@ struct NotchRootView: View {
             showsLocalPerformance: snapshot.showsLocalPerformance,
             localLedgerRows: snapshot.localLedgerRowCount,
             compactRowCount: snapshot.compactRowCount,
-            showsDeepSeekPricing: model.deepSeekPricingEnabled)
+            showsDeepSeekPricing: model.deepSeekPricingEnabled,
+            hasTopUpAction: model.topUpAction(for: snapshot) != nil)
     }
 
     private func tooltipTailOffset(index: Int, snapshot: ProviderSnapshot) -> CGFloat {

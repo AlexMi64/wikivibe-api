@@ -2,6 +2,12 @@
 
 ## 0.1.0 — unreleased
 
+### Top up from the widget
+
+- Added a visible, localized “Top up” button to the WikiVibe widget's hover card. Opens `https://api.wikivibe.dev/purchase` in the system browser, including when the app is signed out. Website authentication remains independent; no app credentials are added to the URL and navigation does not create a payment. A browser-opening failure shows an alert with the direct address.
+- Extended tooltip drawing, placement, panel sizing and interactive regions together to reserve the button's height. Other providers retain their existing cards.
+- Verification: `make build` succeeded; 9 focused screen-anchor/panel/horizontal-layout tests passed. In the running macOS app, Accessibility checks observed the English, Russian and Simplified Chinese buttons and confirmed pointer travel into the card on all four screen edges. Clicking the real button opened `/purchase` in the default Safari browser. A separate unauthenticated browser navigation reached the website login flow. No payment was submitted; original UI preferences were restored. Screenshot pixel review and the browser-opening failure path were not exercised. The published preview DMG was not rebuilt or replaced.
+
 ### Local macOS installer
 
 - Added `make release` and `make dmg`: a universal arm64/x86_64 Release app for macOS 15+, packaged as `build/WikiVibe.dmg` with an Applications shortcut. Dependency licenses and notices are retained inside the installed bundle. Packaging uses ad-hoc signing, not Developer ID; notarization, publishing and automatic updates remain unconfigured. Node.js 22+ for agent configuration is a separate prerequisite.

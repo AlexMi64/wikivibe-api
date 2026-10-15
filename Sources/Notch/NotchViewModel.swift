@@ -154,6 +154,11 @@ final class NotchViewModel: ObservableObject {
     /// the one action people actually get stuck without a second, ordinary
     /// route that only needs SwiftUI's own gesture recognition to work.
     var onOpenSettings: (() -> Void)?
+    var onTopUp: (() -> Void)?
+
+    func topUpAction(for snapshot: ProviderSnapshot) -> (() -> Void)? {
+        snapshot.id == "wikivibe" ? onTopUp : nil
+    }
     /// An update offered in the notch, and how far along taking it is — see
     /// `UpdateCard`.
     @Published var updatePrompt: UpdatePrompt?
@@ -1280,7 +1285,8 @@ final class NotchViewModel: ObservableObject {
                 showsLocalPerformance: snapshot.showsLocalPerformance,
                 localLedgerRows: snapshot.localLedgerRowCount,
                 compactRowCount: snapshot.compactRowCount,
-                showsDeepSeekPricing: deepSeekPricingEnabled)
+                showsDeepSeekPricing: deepSeekPricingEnabled,
+                hasTopUpAction: topUpAction(for: snapshot) != nil)
         }.max() ?? 0
     }
 

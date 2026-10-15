@@ -16,6 +16,7 @@ WikiVibe — приложение для macOS с виджетом у края �
 - Вход в аккаунт WikiVibe: браузер открывает `https://auth.wikivibe.dev/`, возврат приходит на loopback-адрес приложения, код обменивается на токены и сессия сохраняется в Keychain.
 - Восстановление сессии после перезапуска, обновление токена и выход.
 - Баланс аккаунта: обычный, бонусный и замороженный, в единице сервера. Обновляется раз в минуту, и раз в 15 секунд, пока открыто окно.
+- «Пополнить» в раскрываемой карточке виджета открывает `https://api.wikivibe.dev/purchase` в системном браузере. При необходимости сайт попросит отдельный вход; приложение не передаёт токены в URL и не создаёт платёж.
 - Карточка «API-ключи»: ключи авторизованного аккаунта, выбор адреса API и настройка Codex, oh-my-pi, OpenCode и Claude Code с предпросмотром и подтверждением.
 
 Виджет показывает аккаунт и баланс. Расходы и статистика не читаются: это отдельная задача. Кнопка «Открыть сайт» ведёт в панель `api.wikivibe.dev`, у которой своя сессия в браузере; вход в приложении её не создаёт, поэтому сайт может попросить пароль — это не сброс входа в приложении.
@@ -142,6 +143,7 @@ WikiVibe is a macOS app with a screen-edge widget and a menu-bar entry.
 - WikiVibe account sign-in: the browser opens `https://auth.wikivibe.dev/`, the return arrives at the app's loopback address, the code is exchanged for tokens and the session is stored in the keychain.
 - Session restore across restarts, token refresh and sign-out.
 - The account balance: regular, bonus and on hold, in the server's own unit. Re-read every minute, and every 15 seconds while the window is open.
+- “Top up” in the widget's hover card opens `https://api.wikivibe.dev/purchase` in the system browser. The website may require its own sign-in; the app does not put tokens in the URL or create a payment.
 - API keys card: keys from the signed-in account, API address selection, and Codex, oh-my-pi, OpenCode and Claude Code setup with preview and confirmation.
 
 The widget shows the account and its balance. Spending and usage statistics are not read: that is a separate task. “Open the website” leads to the `api.wikivibe.dev` panel, which keeps its own session in the browser; signing in here does not create it, so the site may ask for a password — that is not the app's session being lost.
@@ -268,6 +270,7 @@ WikiVibe 是一款 macOS 应用，提供屏幕边缘小组件和菜单栏入口�
 - WikiVibe 账号登录：浏览器打开 `https://auth.wikivibe.dev/`，回调回到应用的 loopback 地址，授权码换成令牌，会话写入钥匙串。
 - 重启后恢复会话、刷新令牌、退出登录。
 - 账号余额：普通、赠送和冻结，使用服务器自己的单位。每分钟刷新一次；窗口打开时每 15 秒刷新一次。
+- 小组件悬浮卡片中的“充值”会在系统浏览器中打开 `https://api.wikivibe.dev/purchase`。网站可能要求单独登录；应用不会在 URL 中传递令牌，也不会创建付款。
 - API 密钥卡片：读取已登录账号的密钥，选择 API 地址，为 Codex、oh-my-pi、OpenCode 和 Claude Code 配置密钥和模型，写入前预览并确认。
 
 小组件显示账号和余额。支出和使用统计不读取：那是另一项任务。“打开网站”跳转到 `api.wikivibe.dev` 面板，它在浏览器里有自己的会话；在这里登录不会创建那个会话，所以网站可能要求输入密码——这不是应用里的登录被清除。

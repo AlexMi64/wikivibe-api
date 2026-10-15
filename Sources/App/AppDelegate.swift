@@ -31,6 +31,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let fleet = NotchFleet(scope: preferences.notchScope, edge: preferences.notchEdge)
         self.fleet = fleet
         fleet.onOpenSettings = { [weak self] in self?.openSettings() }
+        fleet.onTopUp = { [weak self] in self?.openTopUp() }
         // The notch has nothing to poll: this app reads the account, not usage.
         // A refresh click opens the window that can change the account state.
         fleet.onRefresh = { [weak self] in self?.openSettings() }
@@ -168,6 +169,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         accountWindow?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+    }
+
+    private func openTopUp() {
+        guard !NSWorkspace.shared.open(WikiVibeAuthContract.topUp) else { return }
+        let alert = NSAlert()
+        alert.messageText = L10n.t("Could not open the system browser.")
+        alert.informativeText = L10n.t("Open https://api.wikivibe.dev/purchase in your browser to top up your balance.")
+        NSApp.activate(ignoringOtherApps: true)
+        alert.runModal()
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
