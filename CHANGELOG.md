@@ -2,6 +2,22 @@
 
 ## 0.1.0 — unreleased
 
+### Provider-specific Codex reasoning
+
+- Added exact provider presets and defaults: DeepSeek V4.1 Flash (`none`, `low`, `high`, `max`; default `high`, both catalog ID forms), Gemini 3.8 Flash (`low`, `medium`, `high`; default `medium`), Gemini 3.1 Flash-Lite Preview (family presets `minimal`, `low`, `medium`, `high`; default `minimal`), and GLM 5.3 / 5.3 Flash (`low`, `high`, `max`; default `max`). GPT presets are unchanged; unknown and image IDs remain conservative. Sources are linked in the adapter and trilingual README.
+- Retained the gateway's retired Gemini Preview ID without model substitution and added an explicit warning in its catalog description. No GPT aliases are advertised as extra provider levels; gateway forwarding remains unverified and no paid inference was submitted.
+- Native smoke reproduced empty provider lists before the change, then verified the full defaults/presets through the actual runner and `model/list` in bundled Codex 0.162.0-alpha.17.2 and system CLI 0.153.0. Refreshed the real managed catalog through preview/fingerprint/apply; the entire user `config.toml` remained byte-identical, retaining the current GPT-6.1-sol model and WikiVibe provider.
+- In an isolated HOME and explicit desktop data directory with synthetic credentials, mouse-selected DeepSeek Low, Gemini 3.8 High, Flash-Lite Preview Medium, and both GLMs High; native `config/read` confirmed persistence. Reapplying retained the last model/effort. This clean desktop session filtered `none`, `minimal`, and `max` out of its UI, despite native discovery advertising them; this client capability restriction is documented rather than bypassed. Captured the actual menu; pixel analysis was unavailable.
+- Verification: `make test TEST_FLAGS=-only-testing:WikiVibeTests/WikiVibeKeysTests` passed 11 tests with zero failures. No paid inference request was submitted.
+
+### Codex reasoning effort selection
+
+- Fixed the model catalog advertising an empty reasoning-effort list for every model, which left Codex without selectable levels. Exact known GPT IDs receive defaults and effort presets from the upstream Codex catalog; unknown and image IDs remain unadvertised rather than inheriting guessed capabilities. Reapplying setup refreshes the owned catalog through the existing preview, fingerprint, backup and conflict protections.
+- Documented reapplication, restart/new-chat requirements and mouse-based model/effort selection in English, Russian and Simplified Chinese. Gateway inference support is not inferred from a working picker.
+- Verification: desktop 26.1007.71326, in an isolated HOME and UI data directory with synthetic credentials, selected GPT-5.5 High and GPT-6.1-sol Ultra by mouse. Native `config/read` confirmed persisted `high` and `ultra`; `model/list` returned the advertised presets. DeepSeek had a disabled one-choice effort control. Captured the actual desktop menu; pixel analysis was unavailable. No inference request was submitted. The local managed Codex catalog was refreshed with its existing credential, retaining the WikiVibe provider and current DeepSeek model; native discovery exposed presets for all eight known GPT IDs.
+- Additional smoke: native Codex CLI 0.153.0 and desktop-bundled 0.162.0-alpha.17.2 both accepted extended effort presets. Reapplying the adapter retained the desktop-selected `ultra`; a later manual catalog edit was refused as a conflict.
+- Native regression: `make test TEST_FLAGS=-only-testing:WikiVibeTests/WikiVibeKeysTests` passed all 11 tests with zero failures, including confirmation, restoration, stale-preview and edited-file protection. The first run was interrupted by the command timeout during compilation; the resumed build and test run succeeded.
+
 ### Ad-hoc installer launch fix
 
 - Fixed the signing policy behind an Apple Silicon launch report: dyld rejected the bundled Sparkle framework because the ad-hoc host enabled Hardened Runtime library validation without a Team ID. Signature-integrity verification alone did not catch that policy incompatibility, and the earlier Intel launch did not establish Apple Silicon compatibility.

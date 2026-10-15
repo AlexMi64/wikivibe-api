@@ -318,12 +318,49 @@ function tomlConfig(text, value, root, merge = false) {
   return `${lines.join(newline)}${newline}`;
 }
 
-// Required Codex ModelInfo fields are client metadata, not gateway capabilities.
-// Do not fabricate reasoning, image support, prices or context limits from an ID.
+// Exact model presets, checked 2026-10-15; /models alone has no effort metadata.
+// GPT: https://github.com/openai/codex/blob/main/codex-rs/models-manager/models.json
+// DeepSeek: https://api-docs.deepseek.com/guides/thinking_mode
+// Gemini: https://ai.google.dev/gemini-api/docs/generate-content/thinking#thinking-levels
+// GLM: https://docs.z.ai/guides/capabilities/thinking
+// Provider presets do not prove that WikiVibe forwards reasoning.effort.
+const CODEX_REASONING = new Map([
+  ['gpt-5.5', ['medium', ['low', 'medium', 'high', 'xhigh']]],
+  ['gpt-5.6-luna', ['medium', ['low', 'medium', 'high', 'xhigh', 'max']]],
+  ['gpt-5.6-sol', ['low', ['low', 'medium', 'high', 'xhigh', 'max', 'ultra']]],
+  ['gpt-5.6-terra', ['medium', ['low', 'medium', 'high', 'xhigh', 'max', 'ultra']]],
+  ['gpt-6-astra', ['low', ['low', 'medium', 'high', 'xhigh', 'max', 'ultra']]],
+  ['gpt-6-luna', ['medium', ['low', 'medium', 'high', 'xhigh', 'max']]],
+  ['gpt-6-sol', ['medium', ['low', 'medium', 'high', 'xhigh', 'max', 'ultra']]],
+  ['gpt-6.1-sol', ['low', ['low', 'medium', 'high', 'xhigh', 'max', 'ultra']]],
+  ['deepseek/deepseek-v4.1-flash', ['high', ['none', 'low', 'high', 'max']]],
+  ['deepseek-v4.1-flash', ['high', ['none', 'low', 'high', 'max']]],
+  ['gemini-3.8-flash', ['medium', ['low', 'medium', 'high']]],
+  // Preview is retired at Google; retain the gateway ID, never substitute a model.
+  ['gemini-3.1-flash-lite-preview', ['minimal', ['minimal', 'low', 'medium', 'high']]],
+  ['glm-5.3', ['max', ['low', 'high', 'max']]],
+  ['glm-5.3-flash', ['max', ['low', 'high', 'max']]],
+]);
+const CODEX_EFFORTS = [
+  { effort: 'none', description: 'Disable reasoning' },
+  { effort: 'minimal', description: 'Minimal reasoning; not guaranteed to be off' },
+  { effort: 'low', description: 'Fast responses with lighter reasoning' },
+  { effort: 'medium', description: 'Balances speed and reasoning depth for everyday tasks' },
+  { effort: 'high', description: 'Greater reasoning depth for complex problems' },
+  { effort: 'xhigh', description: 'Extra high reasoning depth for complex problems' },
+  { effort: 'max', description: 'Maximum reasoning depth for the hardest problems' },
+  { effort: 'ultra', description: 'Maximum reasoning with automatic task delegation' },
+];
+// Other required ModelInfo fields remain conservative client metadata, not
+// claims about gateway tools, image support, prices or context limits.
 function codexCatalog(models) {
   return { models: models.map(({ id }, priority) => ({
-    slug: id, display_name: `WikiVibe · ${id}`, description: 'WikiVibe; совместимость Responses и инструментов не проверена.',
-    default_reasoning_level: null, supported_reasoning_levels: [], shell_type: 'shell_command',
+    slug: id, display_name: `WikiVibe · ${id}`, description: id === 'gemini-3.1-flash-lite-preview'
+      ? 'WikiVibe; Google Preview снят с обслуживания, маршрут шлюза и reasoning не проверены.'
+      : 'WikiVibe; совместимость Responses и инструментов не проверена.',
+    default_reasoning_level: CODEX_REASONING.get(id)?.[0] ?? null,
+    supported_reasoning_levels: CODEX_EFFORTS.filter(({ effort }) => CODEX_REASONING.get(id)?.[1].includes(effort)),
+    shell_type: 'shell_command',
     visibility: 'list', supported_in_api: true, priority, availability_nux: null, upgrade: null,
     base_instructions: 'You are a coding assistant running in Codex. Follow the user request and repository instructions, use the available tools to complete the task, preserve unrelated user changes, and report the changes and actual verification performed.',
     support_verbosity: false, default_verbosity: null, apply_patch_tool_type: null,
