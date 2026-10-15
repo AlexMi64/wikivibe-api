@@ -1,4 +1,5 @@
 import XCTest
+import CryptoKit
 @testable import Codenotch
 
 @MainActor
@@ -121,9 +122,6 @@ final class WikiVibeKeysTests: XCTestCase {
         XCTAssertTrue(updated.contains("other/keep"))
         let claude = try JSONSerialization.jsonObject(with: Data(contentsOf: root.appendingPathComponent(".claude/settings.json"))) as! [String: Any]
         XCTAssertEqual((claude["env"] as? [String: String])?["ANTHROPIC_BASE_URL"], "https://api.wikivibe.dev")
-        let codex = try String(contentsOf: root.appendingPathComponent(".codex/config.toml"), encoding: .utf8)
-        XCTAssertTrue(codex.contains("wire_api = \"responses\""))
-        XCTAssertFalse(codex.contains("\nmodel ="))
         var restore = WikiVibeAgentRequest(operation: "previewRestore", agentIds: request.agentIds, value: nil)
         let restorePreview = try await service.run(restore)
         restore.operation = "restore"; restore.fingerprint = restorePreview.fingerprint
@@ -131,6 +129,7 @@ final class WikiVibeKeysTests: XCTestCase {
         XCTAssertTrue(restored.failures?.isEmpty == true)
         XCTAssertEqual(try String(contentsOf: config, encoding: .utf8), original)
         XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent(".claude/settings.json").path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent(".codex/config.toml").path))
     }
     func testFilesChangedAfterPreviewAreNotWritten() async throws {
         guard WikiVibeAgentService.nodeURL != nil else { throw XCTSkip("Node.js is not installed") }
@@ -170,6 +169,73 @@ final class WikiVibeKeysTests: XCTestCase {
         XCTAssertEqual((try FileManager.default.attributesOfItem(atPath: config.path)[.posixPermissions] as? NSNumber)?.intValue, 0o600)
         let backup = config.deletingLastPathComponent().appendingPathComponent(".wikivibe-gateway-backups")
         XCTAssertEqual((try FileManager.default.attributesOfItem(atPath: backup.path)[.posixPermissions] as? NSNumber)?.intValue, 0o700)
+    }
+    func testCodexActivationRestoresOriginalDefaultConfiguration() async throws {
+        guard WikiVibeAgentService.nodeURL != nil else { throw XCTSkip("Node.js is not installed") }
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+        defer { try? FileManager.default.removeItem(at: root) }
+        let config = root.appendingPathComponent(".codex/config.toml")
+        try FileManager.default.createDirectory(at: config.deletingLastPathComponent(), withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+        let original = Data("model = 'old-model'\r\nmodel_provider = 'other'\r\nprofile = 'work'\r\n[profiles.work]\r\nmodel = 'gpt-fixture'\r\n[model_providers.other]\r\nname = 'Keep'\r\n".utf8)
+        try original.write(to: config)
+        let service = WikiVibeAgentService(home: root)
+        var request = WikiVibeAgentRequest(operation: "preview", agentIds: ["codex"],
+            value: .init(apiKey: "fixture-safe-key", baseUrl: WikiVibeGateway.primary.rawValue, models: [.init(id: "other-fixture"), .init(id: "gpt-fixture")], protocols: ["openai_responses"]))
+        let preview = try await service.run(request)
+        XCTAssertEqual(try Data(contentsOf: config), original)
+        XCTAssertTrue(preview.failures?.isEmpty == true)
+        request.operation = "apply"; request.fingerprint = preview.fingerprint
+        let applied = try await service.run(request)
+        XCTAssertTrue(applied.failures?.isEmpty == true)
+        let catalogURL = root.appendingPathComponent(".codex/wikivibe-models.json")
+        let catalog = try JSONSerialization.jsonObject(with: Data(contentsOf: catalogURL)) as! [String: Any]
+        XCTAssertEqual((catalog["models"] as? [[String: Any]])?.compactMap { $0["slug"] as? String }, ["other-fixture", "gpt-fixture"])
+        var restore = WikiVibeAgentRequest(operation: "previewRestore", agentIds: ["codex"], value: nil)
+        let restorePreview = try await service.run(restore)
+        restore.operation = "restore"; restore.fingerprint = restorePreview.fingerprint
+        let restored = try await service.run(restore)
+        XCTAssertTrue(restored.failures?.isEmpty == true)
+        XCTAssertEqual(try Data(contentsOf: config), original)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: catalogURL.path))
+    }
+
+    func testCodexCutoverRemovesOwnedProfileButRefusesLaterEdits() async throws {
+        guard WikiVibeAgentService.nodeURL != nil else { throw XCTSkip("Node.js is not installed") }
+        for edited in [false, true] {
+            let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+            try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+            defer { try? FileManager.default.removeItem(at: root) }
+            let directory = root.appendingPathComponent(".codex")
+            let backupDirectory = directory.appendingPathComponent(".wikivibe-gateway-backups")
+            try FileManager.default.createDirectory(at: backupDirectory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+            let profile = directory.appendingPathComponent("wikivibe.config.toml")
+            let previous = Data("model_provider = \"wikivibe\"\n".utf8)
+            let current = edited ? previous + Data("# user edit\n".utf8) : previous
+            try current.write(to: profile)
+            try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: profile.path)
+            let record: [String: Any] = ["version": 1, "agentId": "codex", "rel": ".codex/wikivibe.config.toml", "original": NSNull(), "state": "active",
+                                       "appliedHash": SHA256.hash(data: previous).map { String(format: "%02x", $0) }.joined()]
+            let backup = backupDirectory.appendingPathComponent("wikivibe.config.toml.json")
+            try JSONSerialization.data(withJSONObject: record).write(to: backup)
+            try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: backup.path)
+            let service = WikiVibeAgentService(home: root)
+            var request = WikiVibeAgentRequest(operation: "preview", agentIds: ["codex"],
+                value: .init(apiKey: "fixture-safe-key", baseUrl: WikiVibeGateway.primary.rawValue, models: [.init(id: "gpt-fixture")], protocols: ["openai_responses"]))
+            let preview = try await service.run(request)
+            if edited {
+                XCTAssertEqual(preview.failures?.map(\.agentId), ["codex"])
+                XCTAssertEqual(try Data(contentsOf: profile), current)
+                XCTAssertFalse(FileManager.default.fileExists(atPath: directory.appendingPathComponent("config.toml").path))
+            } else {
+                XCTAssertTrue(preview.failures?.isEmpty == true)
+                request.operation = "apply"; request.fingerprint = preview.fingerprint
+                let applied = try await service.run(request)
+                XCTAssertTrue(applied.failures?.isEmpty == true)
+                XCTAssertFalse(FileManager.default.fileExists(atPath: profile.path))
+                XCTAssertFalse(FileManager.default.fileExists(atPath: backup.path))
+            }
+        }
     }
     func testConfirmationAcceptsReorderedJSONFields() throws {
         guard let node = WikiVibeAgentService.nodeURL else { throw XCTSkip("Node.js is not installed") }

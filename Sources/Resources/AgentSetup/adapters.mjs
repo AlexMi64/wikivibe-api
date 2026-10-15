@@ -13,8 +13,8 @@ import { parseDocument } from './vendor/yaml/browser/index.js';
 // Catalog: https://github.com/openai/codex/blob/main/codex-rs/protocol/src/openai_models.rs
 // OpenCode: https://opencode.ai/docs/config/ and https://opencode.ai/docs/providers/#custom-provider
 // OMP: https://github.com/can1357/oh-my-pi/blob/main/docs/models.md
-// Default local paths and our opt-in Codex profile are managed. Applying replaces
-// WikiVibe credentials/routing with the authenticated plugin route, never defaults.
+// Standard local configs are managed. Confirmed Codex apply activates WikiVibe
+// for desktop and CLI; other agents retain their model selections and roles.
 const ENDPOINTS = new Set(['https://api.wikivibe.dev/v1', 'https://vapi.wikivibe.dev/v1']);
 const BACKUPS = '.wikivibe-gateway-backups';
 const AGENTS = [
@@ -239,7 +239,7 @@ function addYamlAllowlist(text, models, providerId = 'wikivibe') {
   }
   return next;
 }
-function tomlConfig(text, value, merge = false) {
+function tomlConfig(text, value, root, merge = false) {
   if (text.includes('"""') || text.includes("'''")) fail('Многострочные строки TOML не изменяются автоматически.');
   const newline = text.includes('\r\n') ? '\r\n' : '\n';
   const lines = text ? text.split(/\r?\n/) : [];
@@ -251,6 +251,46 @@ function tomlConfig(text, value, merge = false) {
     if (!/^\s*[A-Za-z_][\w-]*\s*=/.test(lines[i])) fail('Сложные ключи в корне TOML не изменяются автоматически.');
     if (/^\s*model_providers(?:\s*=|\.)/.test(lines[i])) fail('model_providers в однострочной таблице TOML или с точечными ключами не изменяется.');
   }
+  const keys = ['model', 'model_provider', 'model_catalog_json', 'profile'];
+  const rootLines = lines.slice(0, rootEnd);
+  const fields = key => rootLines.filter(line => new RegExp(`^\\s*${key}\\s*=`).test(line));
+  if (keys.some(key => fields(key).length > 1)) fail('Повторяющиеся ключи модели TOML; файл не изменён.');
+  const stringValue = line => {
+    if (!line) return undefined;
+    const match = line.match(/^[^=]+=\s*("(?:[^"\\]|\\.)*"|'[^']*')\s*(?:#.*)?$/);
+    if (!match) fail('Сложное значение модели или профиля TOML не изменяется автоматически.');
+    try { return match[1].startsWith("'") ? match[1].slice(1, -1) : JSON.parse(match[1]); }
+    catch { fail('Неподдерживаемая строка модели или профиля TOML; файл не изменён.'); }
+  };
+  let currentModel = stringValue(fields('model')[0]);
+  const profile = stringValue(fields('profile')[0]);
+  if (profile !== undefined) {
+    for (let start = rootEnd; start < lines.length; start++) {
+      const header = lines[start].match(/^\s*\[\s*profiles\s*\.\s*("(?:[^"\\]|\\.)*"|'[^']*'|[\w-]+)\s*\]\s*(?:#.*)?$/);
+      if (!header) continue;
+      const name = /^["']/.test(header[1]) ? stringValue(`profile = ${header[1]}`) : header[1];
+      if (name !== profile) continue;
+      let end = start + 1;
+      while (end < lines.length && !/^\s*\[/.test(lines[end])) end++;
+      const models = lines.slice(start + 1, end).filter(line => /^\s*model\s*=/.test(line));
+      if (models.length > 1) fail('Повторяющиеся ключи модели TOML; файл не изменён.');
+      currentModel = stringValue(models[0]) ?? currentModel;
+    }
+  }
+  const models = value.models.filter(({ id }) => !id.startsWith('gpt-image-'));
+  if (!models.length) fail('Codex: каталог не содержит текстовых моделей.');
+  const model = models.some(({ id }) => id === currentModel) ? currentModel : models[0].id;
+  const settings = { model, model_provider: 'wikivibe', model_catalog_json: path.join(root, '.codex/wikivibe-models.json') };
+  // A selected legacy profile can override root routing in the desktop client.
+  // Keep its definition, but clear the selection as part of confirmed activation.
+  const updated = rootLines.filter(line => !/^\s*profile\s*=/.test(line));
+  for (const [key, setting] of Object.entries(settings)) {
+    const index = updated.findIndex(line => new RegExp(`^\\s*${key}\\s*=`).test(line));
+    const assignment = `${key} = ${JSON.stringify(setting)}`;
+    if (index < 0) updated.push(assignment); else updated[index] = assignment;
+  }
+  lines.splice(0, rootEnd, ...updated);
+  rootEnd = updated.length;
   const matches = [];
   for (let i = rootEnd; i < lines.length; i++) {
     if (/^\s*\[\s*model_providers\s*\.\s*(?:wikivibe(?=\s*(?:\.|\]))|["']wikivibe["'])/.test(lines[i])) matches.push(i);
@@ -259,9 +299,8 @@ function tomlConfig(text, value, merge = false) {
   if (matches.length > 1) fail('Несколько блоков model_providers.wikivibe в TOML; файл не изменён.');
   if (matches.length) {
     if (!merge) fail('Конфликт: поставщик wikivibe уже существует в TOML.');
-    // A file edited after the plugin wrote it cannot be regenerated from the
-    // original without dropping those edits, so only the plugin's own block is
-    // rewritten: the provider, wire protocol and endpoint must still be ours.
+    // Only the plugin's provider block and confirmed active routing are changed;
+    // unrelated edits must survive key rotation.
     const start = matches[0];
     let end = start + 1;
     while (end < lines.length && !/^\s*\[/.test(lines[end])) end++;
@@ -297,17 +336,12 @@ function render(agent, rel, bytes, value, root, merge = false, providerId = 'wik
   const text = bytes?.toString('utf8') ?? '';
   if (agent.id === 'opencode') return openCodeConfig(text, value);
   if (agent.id === 'codex') {
-    // These two files exist only for the plugin: an edit inside them cannot be
-    // separated from plugin content, so an edited file is never overwritten.
+    // The catalog is plugin-owned: later edits are never overwritten.
     if (rel.endsWith('wikivibe-models.json')) {
       if (bytes !== null) fail(merge ? conflict(agent.label) : 'Codex: файл wikivibe-models.json уже существует и не принадлежит плагину.');
       return json(codexCatalog(value.models));
     }
-    if (rel.endsWith('wikivibe.config.toml')) {
-      if (bytes !== null) fail(merge ? conflict(agent.label) : 'Codex: профиль wikivibe уже существует и не принадлежит плагину.');
-      return `model_provider = "wikivibe"\nmodel_catalog_json = ${JSON.stringify(path.join(root, '.codex/wikivibe-models.json'))}\n`;
-    }
-    return tomlConfig(text, value, merge);
+    return tomlConfig(text, value, root, merge);
   }
   if (agent.id === 'omp') {
     if (/\/config\.ya?ml$/.test(rel)) return addYamlAllowlist(text, value.models, providerId);
@@ -465,6 +499,15 @@ async function plans(root, agents, value, restore = false) {
         // file instead: unrelated edits must never block key rotation.
         const merge = Boolean(backup) && (!exact || backup.record.preserveEdits === true);
         if (merge && current === null) fail(`${agent.label}: файл удалён после применения. Восстановите резервную копию или создайте файл заново.`);
+        // Migrate the former CLI-only profile, but never remove an unowned or
+        // subsequently edited profile. Restore still covers older installations.
+        if (agent.id === 'codex' && rel.endsWith('wikivibe.config.toml')) {
+          if (backup) {
+            if (merge) fail(conflict(agent.label));
+            agentPlans.push({ agent, rel, target, current, backup, cleanup: true });
+          }
+          continue;
+        }
         const filters = agent.id === 'omp' && /\/config\.ya?ml$/.test(rel);
         const baseline = backup && !merge ? backup.record.original === null ? null : Buffer.from(backup.record.original.base64, 'base64') : current?.bytes ?? null;
         if (filters) {
@@ -544,7 +587,7 @@ export async function previewAgents(agentIds, value, { home = homedir() } = {}) 
   const agents = selected(agentIds); preferences(value, true);
   const root = await homeRoot(home);
   const { plans: changes, failures } = await plans(root, agents, { ...value, apiKey: value.apiKey ?? 'preview-redacted' });
-  return { changes: changes.map(plan => ({ agentId: plan.agent.id, path: plan.target, secretOnDisk: !plan.cleanup && !plan.filters && !plan.rel.endsWith('wikivibe-models.json') && !plan.rel.endsWith('wikivibe.config.toml') })), failures };
+  return { changes: changes.map(plan => ({ agentId: plan.agent.id, path: plan.target, secretOnDisk: !plan.cleanup && !plan.filters && !plan.rel.endsWith('wikivibe-models.json') })), failures };
 }
 export async function applyAgents(agentIds, value, { home = homedir() } = {}) {
   const agents = selected(agentIds); preferences(value, true);

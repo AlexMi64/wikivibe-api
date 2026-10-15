@@ -139,7 +139,11 @@ struct WikiVibeAPIKeysView: View {
                     if model.isRestoring {
                         Text(L10n.t("Restore returns the original files, or removes files created by WikiVibe. Files edited after applying are not overwritten."))
                     } else {
-                        Text(L10n.t("Codex: use codex -p wikivibe, then /model. OpenCode: /models. oh-my-pi: /model; model roles are kept. Current model selections are not switched."))
+                        Text(L10n.t("OpenCode: choose a model in its menu. oh-my-pi: /model; their current model selections and model roles are kept."))
+                        if model.effectiveAgents.contains(.codex) {
+                            Text(L10n.t("Codex: this makes WikiVibe the default provider for the desktop app and CLI. The current model is kept if available; otherwise the first text model is selected. The previous profile selection is cleared. Restart Codex and choose a model in its menu, or use /model in the CLI. Restore returns the original configuration."))
+                                .foregroundStyle(.orange)
+                        }
                         if model.effectiveAgents.contains(.claude) {
                             Text(L10n.t("Claude Code: this replaces the global Anthropic gateway and authentication token. Choose an available model with /model in a new session. The model picker requires Claude Code 2.1.242 or newer."))
                                 .foregroundStyle(.orange)
