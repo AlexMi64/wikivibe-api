@@ -74,7 +74,7 @@ make run
 
 `make dmg` собирает универсальный Release для Intel и Apple Silicon и создаёт `build/WikiVibe.dmg`. Для установки на macOS 15+ откройте образ, закройте уже запущенный WikiVibe и перетащите `WikiVibe.app` на ссылку `Applications` («Программы»). Затем извлеките образ и запускайте приложение из «Программ». Node.js 22+ для настройки агентов устанавливается отдельно и не входит в DMG.
 
-`make build` остаётся неподписанной отладочной сборкой. DMG использует локальную ad-hoc-подпись, а не Developer ID; проверки Apple (notarization) нет. Если macOS блокирует доверенную копию, после попытки запуска используйте «Системные настройки → Конфиденциальность и безопасность → Всё равно открыть». Не отключайте Gatekeeper целиком. Публикация и автоматические обновления не настроены.
+`make build` остаётся неподписанной отладочной сборкой. DMG использует локальную ad-hoc-подпись, а не Developer ID; проверки Apple (notarization) нет. Для этой сборки Hardened Runtime отключён: без Team ID его проверка библиотек блокирует Sparkle при запуске на Apple Silicon. Отладочные entitlements не добавляются; упаковка проверяет флаги подписи обеих архитектур. Это настройка приложения, а не отключение защиты macOS. Если macOS блокирует доверенную копию, после попытки запуска используйте «Системные настройки → Конфиденциальность и безопасность → Всё равно открыть». Не отключайте Gatekeeper целиком. Готовые DMG публикуются вручную в [GitHub Releases](https://github.com/AlexMi64/wikivibe-api/releases); автоматические обновления не настроены.
 
 ### Запуск и конфиденциальность
 
@@ -201,7 +201,7 @@ The app is built at `build/DerivedData/Build/Products/Debug/WikiVibe.app`. `make
 
 `make dmg` builds a universal Release for Intel and Apple Silicon at `build/WikiVibe.dmg`. To install on macOS 15+, open the image, quit any running WikiVibe, and drag `WikiVibe.app` onto the `Applications` shortcut. Eject the image and launch the app from Applications. Node.js 22+ for agent configuration is installed separately and is not included in the DMG.
 
-`make build` remains an unsigned debug build. The DMG uses local ad-hoc signing, not Developer ID, and is not notarized by Apple. If macOS blocks a trusted copy, attempt to launch it and use System Settings → Privacy & Security → Open Anyway. Do not disable Gatekeeper globally. Publishing and automatic updates are not configured.
+`make build` remains an unsigned debug build. The DMG uses local ad-hoc signing, not Developer ID, and is not notarized by Apple. Hardened Runtime is disabled for this build: without a Team ID, its library validation blocks Sparkle at launch on Apple Silicon. Debug entitlements are not injected; packaging checks both architectures' signature flags. This is an app build policy, not a system security override. If macOS blocks a trusted copy, attempt to launch it and use System Settings → Privacy & Security → Open Anyway. Do not disable Gatekeeper globally. Installers are published manually in [GitHub Releases](https://github.com/AlexMi64/wikivibe-api/releases); automatic updates are not configured.
 
 ### Runtime and privacy
 
@@ -328,7 +328,7 @@ make run
 
 `make dmg` 为 Intel 与 Apple Silicon 构建通用 Release，并生成 `build/WikiVibe.dmg`。在 macOS 15 或更新版本上安装时，打开磁盘映像，退出已运行的 WikiVibe，将 `WikiVibe.app` 拖到 `Applications`（应用程序）快捷方式。弹出映像后，从“应用程序”启动。代理配置需要另行安装 Node.js 22+，DMG 不包含 Node.js。
 
-`make build` 仍生成未签名的调试版本。DMG 使用本地 ad-hoc 签名，而非 Developer ID，且未经过 Apple 公证。如果 macOS 阻止可信副本，请先尝试启动，再到“系统设置 → 隐私与安全性 → 仍要打开”允许运行。不要全局禁用 Gatekeeper。尚未配置发布或自动更新。
+`make build` 仍生成未签名的调试版本。DMG 使用本地 ad-hoc 签名，而非 Developer ID，且未经过 Apple 公证。此构建关闭 Hardened Runtime：缺少 Team ID 时，其库验证会在 Apple Silicon 上阻止 Sparkle 加载。构建不注入调试 entitlements，打包会检查两种架构的签名标志。这是应用的构建策略，不会关闭系统安全保护。如果 macOS 阻止可信副本，请先尝试启动，再到“系统设置 → 隐私与安全性 → 仍要打开”允许运行。不要全局禁用 Gatekeeper。安装包手动发布到 [GitHub Releases](https://github.com/AlexMi64/wikivibe-api/releases)，尚未配置自动更新。
 
 ### 启动行为和隐私
 

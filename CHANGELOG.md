@@ -2,6 +2,13 @@
 
 ## 0.1.0 — unreleased
 
+### Ad-hoc installer launch fix
+
+- Fixed the signing policy behind an Apple Silicon launch report: dyld rejected the bundled Sparkle framework because the ad-hoc host enabled Hardened Runtime library validation without a Team ID. Signature-integrity verification alone did not catch that policy incompatibility, and the earlier Intel launch did not establish Apple Silicon compatibility.
+- `make release` / `make dmg` now disable Hardened Runtime specifically for local ad-hoc builds and stop injecting debug entitlements. Staging explicitly clears code-signing option flags instead of re-enabling runtime or preserving entitlements. No Gatekeeper setting, system security policy or library-validation bypass entitlement is changed.
+- Packaging verifies nested signatures across all architectures and refuses a host signature other than plain ad-hoc for either arm64 or x86_64. Dependency notices remain in the bundle.
+- Verification: the universal Release/DMG build, architecture-specific signing-policy checks, deep/strict all-architecture verification and DMG checksum verification passed. Mounted read-only, copied into an isolated installation directory and launched the packaged app on Intel; its account window and enabled widget top-up button were observed through macOS Accessibility. The packaged app has no entitlements. Native Apple Silicon/macOS 27.2 execution remains unverified and needs confirmation on the reporting Mac; no claim of an M3 runtime pass is made.
+
 ### Top up from the widget
 
 - Added a visible, localized “Top up” button to the WikiVibe widget's hover card. Opens `https://api.wikivibe.dev/purchase` in the system browser, including when the app is signed out. Website authentication remains independent; no app credentials are added to the URL and navigation does not create a payment. A browser-opening failure shows an alert with the direct address.
