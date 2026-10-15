@@ -170,7 +170,7 @@ final class WikiVibeKeysTests: XCTestCase {
         let backup = config.deletingLastPathComponent().appendingPathComponent(".wikivibe-gateway-backups")
         XCTAssertEqual((try FileManager.default.attributesOfItem(atPath: backup.path)[.posixPermissions] as? NSNumber)?.intValue, 0o700)
     }
-    func testImageModelsUseOhMyPiResponsesRoleOnly() async throws {
+    func testImageToolEditsInvalidateApplyConfirmation() async throws {
         guard WikiVibeAgentService.nodeURL != nil else { throw XCTSkip("Node.js is not installed") }
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
@@ -178,27 +178,23 @@ final class WikiVibeKeysTests: XCTestCase {
         let service = WikiVibeAgentService(home: root)
         let value = WikiVibeAgentRequest.Value(apiKey: "fixture-safe-key", baseUrl: WikiVibeGateway.primary.rawValue,
                                               models: [.init(id: "gpt-image-2"), .init(id: "gpt-6.1-sol")], protocols: nil)
-        var request = WikiVibeAgentRequest(operation: "preview", agentIds: WikiVibeAgent.allCases.map(\.rawValue), value: value)
+        var request = WikiVibeAgentRequest(operation: "preview", agentIds: ["codex"], value: value)
         let preview = try await service.run(request)
         XCTAssertTrue(preview.failures?.isEmpty == true)
         request.operation = "apply"; request.fingerprint = preview.fingerprint
-        let applied = try await service.run(request)
-        XCTAssertTrue(applied.failures?.isEmpty == true)
-
-        let ompConfig = try String(contentsOf: root.appendingPathComponent(".omp/agent/config.yml"), encoding: .utf8)
-        XCTAssertTrue(ompConfig.contains("wikivibe/gpt-image-2"))
-        let ompModels = try String(contentsOf: root.appendingPathComponent(".omp/agent/models.yml"), encoding: .utf8)
-        XCTAssertTrue(ompModels.contains("gpt-image-2"))
-        XCTAssertTrue(ompModels.contains("openai-responses"))
-        XCTAssertFalse(try String(contentsOf: root.appendingPathComponent(".config/opencode/opencode.json"), encoding: .utf8).contains("gpt-image-2"))
-        XCTAssertFalse(try String(contentsOf: root.appendingPathComponent(".claude/settings.json"), encoding: .utf8).contains("gpt-image-2"))
-        XCTAssertFalse(try String(contentsOf: root.appendingPathComponent(".codex/wikivibe-models.json"), encoding: .utf8).contains("gpt-image-2"))
-        var restore = WikiVibeAgentRequest(operation: "previewRestore", agentIds: request.agentIds, value: nil)
-        let restorePreview = try await service.run(restore)
-        restore.operation = "restore"; restore.fingerprint = restorePreview.fingerprint
-        let restored = try await service.run(restore)
-        XCTAssertTrue(restored.failures?.isEmpty == true)
-        XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent(".omp/agent/config.yml").path))
+        _ = try await service.run(request)
+        request.operation = "preview"; request.fingerprint = nil
+        let secondPreview = try await service.run(request)
+        let script = root.appendingPathComponent(".codex/wikivibe-images.mjs")
+        let edited = try Data(contentsOf: script) + Data("\n// user edit\n".utf8)
+        try edited.write(to: script)
+        let config = root.appendingPathComponent(".codex/config.toml")
+        let original = try Data(contentsOf: config)
+        request.operation = "apply"; request.fingerprint = secondPreview.fingerprint
+        do { _ = try await service.run(request); XCTFail("Changed image-tool code was accepted") }
+        catch WikiVibeKeysError.conflict { }
+        XCTAssertEqual(try Data(contentsOf: script), edited)
+        XCTAssertEqual(try Data(contentsOf: config), original)
     }
 
     func testOhMyPiExistingImageRoleIsPreserved() async throws {
@@ -241,28 +237,6 @@ final class WikiVibeKeysTests: XCTestCase {
         request.operation = "apply"; request.fingerprint = preview.fingerprint
         _ = try await service.run(request)
         XCTAssertEqual(try String(contentsOf: config, encoding: .utf8), "modelRoles:\n  text: wikivibe/gpt-6.1-sol\n")
-    }
-    func testOhMyPiRejectsImageRoleWithoutResponsesOrCarrier() async throws {
-        guard WikiVibeAgentService.nodeURL != nil else { throw XCTSkip("Node.js is not installed") }
-        for (ids, protocols) in [
-            (["gpt-image-2", "gpt-6.1-sol"], ["openai_chat_completions"]),
-            (["gpt-image-2", "other-chat"], ["openai_responses"])
-        ] {
-            let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-            try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
-            defer { try? FileManager.default.removeItem(at: root) }
-            let service = WikiVibeAgentService(home: root)
-            let value = WikiVibeAgentRequest.Value(apiKey: "fixture-safe-key", baseUrl: WikiVibeGateway.primary.rawValue,
-                                                  models: ids.map { .init(id: $0) }, protocols: protocols)
-            var request = WikiVibeAgentRequest(operation: "preview", agentIds: ["omp"], value: value)
-            let preview = try await service.run(request)
-            XCTAssertTrue(preview.failures?.isEmpty == true)
-            request.operation = "apply"; request.fingerprint = preview.fingerprint
-            let applied = try await service.run(request)
-            XCTAssertTrue(applied.failures?.isEmpty == true)
-            XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent(".omp/agent/config.yml").path))
-            XCTAssertFalse(try String(contentsOf: root.appendingPathComponent(".omp/agent/models.yml"), encoding: .utf8).contains("gpt-image-2"))
-        }
     }
 
     func testCodexActivationRestoresOriginalDefaultConfiguration() async throws {

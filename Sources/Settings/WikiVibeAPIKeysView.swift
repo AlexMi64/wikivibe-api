@@ -141,7 +141,7 @@ struct WikiVibeAPIKeysView: View {
                     } else {
                         Text(L10n.t("OpenCode: choose a model in its menu. oh-my-pi: /model; their current model selections and model roles are kept."))
                         if model.effectiveAgents.contains(.codex) {
-                            Text(L10n.t("Codex: this makes WikiVibe the default provider for the desktop app and CLI. The current model is kept if available; otherwise the first text model is selected. The previous profile selection is cleared. Restart Codex and choose a model in its menu, or use /model in the CLI. Restore returns the original configuration."))
+                            Text(L10n.t("Codex: when text models are available, this activates WikiVibe as the default provider, keeps an available text model or selects the first one, and clears the profile selection. An image-only catalog does not change the current text route. Restart Codex; restore returns the original configuration."))
                                 .foregroundStyle(.orange)
                         }
                         if model.effectiveAgents.contains(.claude) {
@@ -149,6 +149,7 @@ struct WikiVibeAPIKeysView: View {
                                 .foregroundStyle(.orange)
                         }
                         Text(L10n.t("The model list proves access only to the catalog, not support for streaming, tools, reasoning or image generation."))
+                        Text(L10n.t("All catalog IDs are kept. For images, keep a text model selected: Codex, OpenCode and Claude Code use the local wikivibe_images MCP tool; oh-my-pi uses generate_image. Responses permission and a GPT-5+ carrier are required. Setup does not perform paid generation or change tool-approval rules."))
                     }
                     Text(L10n.t("Each file is written separately. A failure can leave partial changes; review the result and use backups when necessary."))
                 }

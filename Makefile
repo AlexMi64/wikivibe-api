@@ -65,6 +65,7 @@ dmg: release
 	hdiutil verify "$(DMG)"
 
 test: gen
+	node --test Tests/AgentImageTools.test.mjs
 	xcodebuild -project $(PROJECT) -scheme $(SCHEME) -destination '$(DEST)' \
 		-derivedDataPath $(DERIVED_DATA) -configuration Debug $(LOCAL_SIGN) test $(TEST_FLAGS)
 
