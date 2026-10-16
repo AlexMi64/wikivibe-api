@@ -31,9 +31,13 @@ WikiVibe — приложение для macOS с виджетом у края �
 
 ### API-ключи и настройка агентов
 
-Карточка загружает ключи через сессию самого приложения, со всех страниц `GET /api/v1/keys`. Значения ключей скрыты и остаются в памяти до явной записи в настройки агента. В `UserDefaults` сохраняются только ID выбранного ключа для аккаунта, адрес API и выбранные агенты; токен входа не подставляется вместо API-ключа.
+Карточка загружает все страницы `GET /api/v1/keys` через сессию приложения. Ключи скрыты и остаются в памяти до явной записи в настройки агента. `UserDefaults` хранит выбранный ID ключа, адрес API, агентов и бюджеты контекста отдельно для аккаунта, ключа и шлюза; секреты там не сохраняются.
 
-Выберите активный ключ, `https://api.wikivibe.dev/v1` или `https://vapi.wikivibe.dev/v1` и нужных агентов. Кнопка «Загрузить модели и посмотреть изменения…» читает авторизованный каталог `/models` выбранного ключа и показывает модели, файлы и предупреждения. Ограничения протоколов из данных ключа учитываются; неизвестная совместимость не выдаётся за подтверждённую. Генерация и платные запросы для проверки не запускаются.
+Выберите ключ, адрес API и агентов, нажмите «Загрузить модели». Для каждой модели выберите локальный бюджет контекста (128K–2M) либо введите своё положительное число токенов, в том числе больше 2M. Затем «Предпросмотр изменений конфигурации…» показывает значения и файлы перед подтверждением. Проверка не запускает генерацию или платные запросы.
+
+**Контекст:** Codex получает `context_window` каталога, OpenCode — `limit.context`, oh-my-pi — `contextWindow`. Claude Code не получает произвольных лимитов: его `autoCompactWindow` — граница сжатия, а не вместимость сервера. Глобальный Codex `model_context_window`, OMP overrides и настройки проекта могут иметь приоритет. «Без переопределения» возвращает исходное значение в неизменённых управляемых файлах; поздние ручные правки контекста сохраняются. Это не безусловный сброс всех настроек клиента.
+
+Ссылки на официальные карточки точных ID проверены 17.10.2026. Лимит входа Gemini отмечен отдельно от общего контекста; Google снял `gemini-3.1-flash-lite-preview` с обслуживания. Неизвестные точные ID не получают предположений по похожему названию. Справка производителя и выбранный локальный бюджет не подтверждают реальные лимиты шлюза WikiVibe; настройка не повышает их и не меняет лимит ответа или reasoning.
 
 - **Codex:** после явного подтверждения WikiVibe становится провайдером по умолчанию в `~/.codex/config.toml`; там же подключается `wikivibe-models.json`. Доступная текущая текстовая модель сохраняется, иначе выбирается первая текстовая модель каталога. Прежний выбор профиля сбрасывается, его определение сохраняется. Перезапустите десктопный Codex и начните новый чат: модели появятся в его меню. Для CLI запустите обычный `codex` и используйте `/model`; `-p wikivibe` больше не нужен. Требуется поддержка `model_catalog_json`. При повторном применении прежний CLI-профиль удаляется только если он принадлежит плагину и не изменён; восстановление возвращает исходные настройки. Существующие чаты и нестандартные runtime-home не перенастраиваются.
 - **oh-my-pi:** `~/.omp/agent/models.yml` или `.yaml`; существующие фильтры в `config.yml`/`.yaml` расширяются только для WikiVibe, роли моделей сохраняются. Выбор модели: `/model`.
@@ -184,9 +188,13 @@ The reset-arrow button restores the original layout, spacing, card order and vis
 
 ### API keys and agent configuration
 
-The card reads every page of `GET /api/v1/keys` through the app's own account session. Key values are hidden and stay in memory until an explicit agent configuration write. Only the account's selected key ID, API address and selected agents are saved in `UserDefaults`; the account sign-in token is never substituted for an API key.
+The card reads all pages of `GET /api/v1/keys` through the app session. Keys remain hidden and in memory until an explicit agent configuration write. `UserDefaults` stores the selected key ID, gateway, agents and per-model context budgets scoped by account/key/gateway, never secrets.
 
-Choose an active key, `https://api.wikivibe.dev/v1` or `https://vapi.wikivibe.dev/v1`, and the agents to configure. “Load models and preview…” reads that key's authenticated `/models` catalog and shows the models, affected files and warnings. Reported protocol restrictions are respected; unknown compatibility is not presented as verified. No inference or paid request is used to check the connection.
+Choose a key, gateway and agents, then click “Load models”. Select each model's local context budget (128K–2M) or enter a custom positive token count, including above 2M. “Preview configuration changes…” shows the values and files before confirmation. No inference or paid request is made for verification.
+
+**Context:** Codex uses catalog `context_window`, OpenCode `limit.context`, and oh-my-pi `contextWindow`. Claude Code receives no arbitrary context limit: its `autoCompactWindow` is a compaction threshold, not server capacity. Global Codex `model_context_window`, OMP overrides and project settings may take precedence. “No override” restores the baseline in unchanged managed files; later manual context edits survive. It is not an unconditional client-wide reset.
+
+Exact-ID official source links were checked on 2026-10-17. Gemini input limits are labeled separately from total context; Google has shut down `gemini-3.1-flash-lite-preview`. Unknown IDs are not matched by similar names. Manufacturer specifications and local budgets do not verify WikiVibe gateway capacity or increase it; output limits and reasoning are unchanged.
 
 - **Codex:** after explicit confirmation, WikiVibe becomes the default provider in `~/.codex/config.toml`, which also loads `wikivibe-models.json`. An available current text model is retained; otherwise the first text model in the catalog is selected. The previous profile selection is cleared, not its definition. Restart desktop Codex and start a new chat to see the models in its menu. For the CLI, run ordinary `codex` and use `/model`; `-p wikivibe` is no longer needed. Requires `model_catalog_json` support. Reapplying removes the former CLI profile only if it is plugin-owned and unedited; restoration returns the original configuration. Existing chats and custom runtime homes are not reconfigured.
 - **oh-my-pi:** `~/.omp/agent/models.yml` or `.yaml`; existing `config.yml`/`.yaml` filters expand only for WikiVibe, and model roles stay intact. Choose with `/model`.
@@ -337,9 +345,13 @@ WikiVibe 是一款 macOS 应用，提供屏幕边缘小组件和菜单栏入口�
 
 ### API 密钥与代理配置
 
-卡片通过应用自身的账号会话读取 `GET /api/v1/keys` 的所有分页。密钥值已隐藏，仅保留在内存中，直到明确确认写入代理配置。`UserDefaults` 仅保存账号所选密钥的 ID、API 地址和代理选项；账号登录令牌绝不会代替 API 密钥。
+卡片通过应用会话读取 `GET /api/v1/keys` 的所有分页。密钥保持隐藏，直到明确确认写入代理配置。`UserDefaults` 保存所选密钥 ID、网关、代理和按账号/密钥/网关隔离的各模型上下文预算，不保存密钥。
 
-选择有效密钥、`https://api.wikivibe.dev/v1` 或 `https://vapi.wikivibe.dev/v1`，以及要配置的代理。“加载模型并预览…”读取该密钥经过认证的 `/models` 目录，并显示模型、受影响文件和警告。应用遵守密钥报告的协议限制，不会把未知兼容性描述为已验证。检查连接不会执行推理或付费请求。
+选择密钥、网关和代理后，点击“加载模型”。为各模型选择本地上下文预算（128K–2M），或输入自定义正整数 token 数，支持超过 2M。“预览配置更改…”在确认前显示数值和文件。检查不会执行推理或付费请求。
+
+**上下文：**Codex 使用目录中的 `context_window`，OpenCode 使用 `limit.context`，oh-my-pi 使用 `contextWindow`。不为 Claude Code 写入任意上下文限制：`autoCompactWindow` 是压缩阈值，并非服务器容量。Codex 全局 `model_context_window`、OMP 覆盖和项目设置可能优先。“不覆盖”为未修改的托管文件恢复原始值，保留后续手动上下文更改，并非无条件重置所有客户端设置。
+
+精确 ID 的官方来源于 2026-10-17 核查。Gemini 输入限制与总上下文分开标注；Google 已停用 `gemini-3.1-flash-lite-preview`。不会按相似名称推断未知 ID。厂商规格和本地预算不能证明或提高 WikiVibe 网关容量，不更改输出限制或推理设置。
 
 - **Codex：**明确确认后，WikiVibe 将成为 `~/.codex/config.toml` 中的默认提供商，并在该文件中加载 `wikivibe-models.json`。若当前文本模型可用则保留，否则选择目录中的第一个文本模型。将清除原先选中的配置档，但保留其定义。请重启桌面 Codex 并新建聊天，在菜单中选择模型。CLI 使用普通 `codex` 和 `/model`，不再需要 `-p wikivibe`。需要支持 `model_catalog_json`。重新应用时，仅删除由插件创建且未被修改的旧 CLI 配置档；恢复会还原原始配置。不更改现有聊天及自定义运行目录。
 - **oh-my-pi：**使用 `~/.omp/agent/models.yml` 或 `.yaml`；仅为 WikiVibe 扩展现有 `config.yml`/`.yaml` 的筛选条件，保留模型角色。用 `/model` 选择。

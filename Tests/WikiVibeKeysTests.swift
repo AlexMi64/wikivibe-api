@@ -17,6 +17,44 @@ final class WikiVibeKeysTests: XCTestCase {
         client = URLSession(configuration: configuration)
         return WikiVibeKeysAPI(client: client)
     }
+    func testContextPreferencesAreScopedAndPreviewChangesRequireConfirmation() async throws {
+        let fixture = KeysAuthFixture(refreshStarted: nil)
+        let auth = WikiVibeAuthCoordinator(api: fixture, store: KeysStore(fixture.initial))
+        await auth.restore(); auth.stopWalletPolling()
+        let service = api { request in
+            if request.url?.path == "/v1/models" { return (200, #"{"data":[{"id":"gpt-6.1-sol"},{"id":"glm-5.3"}]}"#) }
+            return (200, #"{"code":0,"data":{"pages":1,"items":[{"id":1,"name":"first","key":"fixture-safe-key","status":"active"},{"id":2,"name":"second","key":"fixture-other-key","status":"active"}]}}"#)
+        }
+        let suite = "context-test-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        let home = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+        defer { defaults.removePersistentDomain(forName: suite); try? FileManager.default.removeItem(at: home) }
+        let controller = WikiVibeKeysController(api: service, service: WikiVibeAgentService(home: home), defaults: defaults)
+        await controller.load(auth: auth)
+        controller.selectedKeyID = 1
+        await controller.loadModels(auth: auth)
+        controller.contextWindows = ["gpt-6.1-sol": 1_050_000, "glm-5.3": 250_000]
+        await controller.prepare(auth: auth)
+        XCTAssertNotNil(controller.preview)
+        controller.contextWindows["glm-5.3"] = 500_000
+        XCTAssertNil(controller.preview)
+        XCTAssertEqual(controller.models.map(\.id), ["glm-5.3", "gpt-6.1-sol"])
+        XCTAssertFalse(FileManager.default.fileExists(atPath: home.appendingPathComponent(".codex/config.toml").path))
+        controller.selectedKeyID = 2
+        XCTAssertTrue(controller.contextWindows.isEmpty)
+        controller.selectedKeyID = 1
+        XCTAssertEqual(controller.contextWindows["glm-5.3"], 500_000)
+        controller.gateway = .alternative
+        XCTAssertTrue(controller.contextWindows.isEmpty)
+        controller.gateway = .primary
+        XCTAssertEqual(controller.contextWindows["gpt-6.1-sol"], 1_050_000)
+        controller.clear()
+        await controller.load(auth: auth)
+        controller.selectedKeyID = 1
+        XCTAssertEqual(controller.contextWindows["glm-5.3"], 500_000)
+    }
+
     func testAllPagesAreReadWithoutDuplicateKeyIdentities() async throws {
         let service = api { request in
             let query = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)!.queryItems!

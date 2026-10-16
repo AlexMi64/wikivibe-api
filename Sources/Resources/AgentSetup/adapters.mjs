@@ -33,9 +33,8 @@ function selected(ids) {
 }
 function preferences(value, secret = false) {
   if (!value || !ENDPOINTS.has(value.baseUrl)) fail('Недопустимый адрес API WikiVibe.');
-  if (!Array.isArray(value.models) || !value.models.length || value.models.some(model => !object(model) || typeof model.id !== 'string' || !model.id.trim() || model.id.length > 300 || /[\x00-\x1f\x7f]/.test(model.id) || model.available === false) || new Set(value.models.map(model => model.id)).size !== value.models.length) fail('Нужен непустой каталог моделей, доступных текущему API-ключу.');
+  if (!Array.isArray(value.models) || !value.models.length || value.models.some(model => !object(model) || typeof model.id !== 'string' || !model.id.trim() || model.id.length > 300 || /[\x00-\x1f\x7f]/.test(model.id) || model.available === false || (model.contextWindow !== undefined && (!Number.isSafeInteger(model.contextWindow) || model.contextWindow < 1))) || new Set(value.models.map(model => model.id)).size !== value.models.length) fail('Нужен непустой каталог моделей, доступных текущему API-ключу.');
   // OMP resolves !commands, $variables and bare environment names in apiKey.
-  // Reject expression-shaped keys rather than letting a consumer execute one.
   if (secret && (typeof value.apiKey !== 'string' || !value.apiKey.trim() || value.apiKey.length > 4096 || /[\s\x00-\x1f\x7f$]/.test(value.apiKey) || value.apiKey.startsWith('!') || /^[A-Z_][A-Z0-9_]*$/.test(value.apiKey))) fail('API-ключ должен содержать само значение ключа, а не команду или имя переменной.');
 }
 function modelId(model) { return typeof model === 'string' ? model : model?.id; }
@@ -147,6 +146,7 @@ function openCodeConfig(text, value, agent, root, removeImages) {
       const previous = entry?.models?.[id] ?? {};
       const next = { ...previous, name: previous.name === `${id} · image: use wikivibe_images.generate_image` ? id : (previous.name ?? id),
         provider: { npm: responseAPI(value, model) ? '@ai-sdk/openai' : '@ai-sdk/openai-compatible' } };
+      if (model.contextWindow !== undefined) next.limit = { ...(object(previous.limit) ? previous.limit : {}), context: model.contextWindow };
       if (previous.name === `${id} · image: use wikivibe_images.generate_image`) {
         if (next.tool_call === false) delete next.tool_call;
         if (next.reasoning === false) delete next.reasoning;
@@ -194,6 +194,7 @@ function ompModels(text, value) {
     id: model.id,
     api: isImageModel(model) || responseAPI(value, model) ? 'openai-responses' : 'openai-completions',
     kind: isImageModel(model) ? 'image' : 'chat',
+    ...(model.contextWindow !== undefined ? { contextWindow: model.contextWindow } : {}),
     ...(isImageModel(model) ? { supportsTools: false } : {})
   }));
   let output = text;
@@ -433,8 +434,8 @@ const CODEX_EFFORTS = [
   { effort: 'max', description: 'Maximum reasoning depth for the hardest problems' },
   { effort: 'ultra', description: 'Maximum reasoning with automatic task delegation' },
 ];
-// Other required ModelInfo fields remain conservative client metadata, not
-// claims about gateway tools, image support, prices or context limits.
+// Context is null without an explicit local override; it is not a capability claim.
+// Other required ModelInfo fields remain conservative client metadata, not claims about capabilities.
 function codexCatalog(models) {
   return { models: models.map((model, priority) => {
     const id = model.id;
@@ -444,6 +445,7 @@ function codexCatalog(models) {
         ? 'WikiVibe; Google Preview снят с обслуживания, маршрут шлюза и reasoning не проверены.'
         : image ? 'Image model. Native generation depends on the client and gateway; image reasoning levels are not declared by the catalog.'
           : 'WikiVibe; совместимость Responses и инструментов не проверена.',
+      context_window: model.contextWindow ?? null,
       default_reasoning_level: CODEX_REASONING.get(id)?.[0] ?? null,
       supported_reasoning_levels: CODEX_EFFORTS.filter(({ effort }) => CODEX_REASONING.get(id)?.[1].includes(effort)),
       shell_type: 'shell_command',

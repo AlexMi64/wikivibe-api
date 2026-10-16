@@ -6,8 +6,9 @@ struct WikiVibeAgentRequest: Encodable, CustomStringConvertible {
             let id: String
             let type: String?
             let protocols: [String]?
-            init(id: String, type: String? = nil, protocols: [String]? = nil) {
-                self.id = id; self.type = type; self.protocols = protocols
+            let contextWindow: Int?
+            init(id: String, type: String? = nil, protocols: [String]? = nil, contextWindow: Int? = nil) {
+                self.id = id; self.type = type; self.protocols = protocols; self.contextWindow = contextWindow
             }
         }
         let apiKey: String
@@ -115,6 +116,21 @@ struct WikiVibeAgentService {
 
 @MainActor
 final class WikiVibeKeysController: ObservableObject {
+    static let contextWindowOptions: [Int?] = [nil, 128_000, 250_000, 500_000, 1_000_000, 1_050_000, 2_000_000]
+    static func contextLabel(_ value: Int?) -> String {
+        guard let value else { return L10n.t("No override") }
+        if value % 1_000_000 == 0 { return "\(value / 1_000_000)M" }
+        if value % 1_000 == 0 { return "\(value / 1_000)K" }
+        return String(value)
+    }
+    @Published var contextWindows = [String: Int]() {
+        didSet {
+            if let ownerID, let selectedKeyID {
+                defaults.set(contextWindows, forKey: contextStorageKey(ownerID: ownerID, keyID: selectedKeyID, gateway: gateway))
+            }
+            preview = nil; pending = nil; result = nil; error = nil
+        }
+    }
     @Published private(set) var keys = [WikiVibeAccountKey]()
     @Published private(set) var models = [WikiVibeModel]()
     @Published private(set) var isBusy = false
@@ -127,13 +143,18 @@ final class WikiVibeKeysController: ObservableObject {
         didSet {
             invalidatePreview()
             if let ownerID { defaults.set(selectedKeyID, forKey: "apiKeys.selectedKey.\(ownerID)") }
+            contextWindows = loadContextWindows()
         }
     }
     @Published var gateway: WikiVibeGateway {
-        didSet { defaults.set(gateway.rawValue, forKey: "apiKeys.gateway"); invalidatePreview() }
+        didSet {
+            defaults.set(gateway.rawValue, forKey: "apiKeys.gateway")
+            invalidatePreview()
+            contextWindows = loadContextWindows()
+        }
     }
     @Published var agents: Set<WikiVibeAgent> {
-        didSet { defaults.set(agents.map(\.rawValue).sorted(), forKey: "apiKeys.agents"); invalidatePreview() }
+        didSet { defaults.set(agents.map(\.rawValue).sorted(), forKey: "apiKeys.agents"); preview = nil; pending = nil; result = nil; error = nil }
     }
     private let api: WikiVibeKeysAPI
     private let service: WikiVibeAgentService
@@ -146,6 +167,16 @@ final class WikiVibeKeysController: ObservableObject {
         WikiVibeAgent.allCases.filter { agents.contains($0) && $0.supports(selectedKey?.protocols) }
     }
     var canPreview: Bool { selectedKey?.isUsable == true && !effectiveAgents.isEmpty && !isBusy }
+    private func contextStorageKey(ownerID: Int, keyID: Int, gateway: WikiVibeGateway) -> String {
+        "apiKeys.contextWindows.\(ownerID).\(keyID).\(gateway.rawValue)"
+    }
+    private func loadContextWindows() -> [String: Int] {
+        guard let ownerID, let selectedKeyID,
+              let saved = defaults.dictionary(forKey: contextStorageKey(ownerID: ownerID, keyID: selectedKeyID, gateway: gateway)) else { return [:] }
+        return saved.reduce(into: [String: Int]()) { result, entry in
+            if let value = entry.value as? Int, value > 0 { result[entry.key] = value }
+        }
+    }
     init(api: WikiVibeKeysAPI = WikiVibeKeysAPI(), service: WikiVibeAgentService = WikiVibeAgentService(), defaults: UserDefaults = .standard) {
         self.api = api; self.service = service; self.defaults = defaults
         gateway = defaults.string(forKey: "apiKeys.gateway").flatMap(WikiVibeGateway.init(rawValue:)) ?? .primary
@@ -155,10 +186,12 @@ final class WikiVibeKeysController: ObservableObject {
         generation = UUID()
         ownerID = nil
         selectedKeyID = nil
+        contextWindows = [:]
         keys = []; models = []; pending = nil; preview = nil; result = nil
         hasLoaded = false; isBusy = false; error = nil
     }
     private func invalidatePreview() {
+        generation = UUID(); isBusy = false
         preview = nil; pending = nil; models = []; result = nil; error = nil
     }
     func cancelPreview() { preview = nil; pending = nil }
@@ -178,6 +211,20 @@ final class WikiVibeKeysController: ObservableObject {
         } catch is CancellationError { }
         catch { if generation == requestID { keys = []; selectedKeyID = nil; self.error = safeMessage(error) } }
     }
+    func loadModels(auth: WikiVibeAuthCoordinator) async {
+        guard !isBusy, auth.account?.id == ownerID,
+              let key = selectedKey, key.isUsable, let secret = key.key else { return }
+        let requestID = generation
+        isBusy = true; error = nil
+        defer { if generation == requestID { isBusy = false } }
+        do {
+            let catalog = try await api.models(gateway: gateway, key: secret)
+            try Task.checkCancellation()
+            guard generation == requestID, auth.account?.id == ownerID else { return }
+            models = catalog
+        } catch is CancellationError { }
+        catch { if generation == requestID { self.error = safeMessage(error) } }
+    }
     func prepare(auth: WikiVibeAuthCoordinator, restore: Bool = false) async {
         guard !isBusy, auth.account?.id == ownerID else { return }
         let requestID = generation
@@ -190,11 +237,11 @@ final class WikiVibeKeysController: ObservableObject {
                 value = nil; chosen = WikiVibeAgent.allCases.filter { agents.contains($0) }
             } else {
                 guard let key = selectedKey, key.isUsable, let secret = key.key, !effectiveAgents.isEmpty else { throw WikiVibeKeysError.unusableKey }
-                let catalog = try await api.models(gateway: gateway, key: secret)
+                let catalog = models.isEmpty ? try await api.models(gateway: gateway, key: secret) : models
                 try Task.checkCancellation()
                 guard generation == requestID, auth.account?.id == ownerID else { return }
                 models = catalog; chosen = effectiveAgents
-                value = .init(apiKey: secret, baseUrl: gateway.rawValue, models: catalog.map { .init(id: $0.id, type: $0.type, protocols: $0.protocols) }, protocols: key.protocols)
+                value = .init(apiKey: secret, baseUrl: gateway.rawValue, models: catalog.map { .init(id: $0.id, type: $0.type, protocols: $0.protocols, contextWindow: contextWindows[$0.id]) }, protocols: key.protocols)
             }
             guard !chosen.isEmpty else { throw WikiVibeKeysError.unusableKey }
             let request = WikiVibeAgentRequest(operation: restore ? "previewRestore" : "preview", agentIds: chosen.map(\.rawValue), value: value)

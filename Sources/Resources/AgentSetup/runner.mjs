@@ -22,7 +22,8 @@ async function fingerprint(preview, request) {
     models: request.value.models.map(model => typeof model === 'string' ? { id: model } : {
       id: model.id,
       ...(typeof model.type === 'string' ? { type: model.type } : {}),
-      ...(Array.isArray(model.protocols) ? { protocols: model.protocols } : {})
+      ...(Array.isArray(model.protocols) ? { protocols: model.protocols } : {}),
+      ...(Number.isSafeInteger(model.contextWindow) ? { contextWindow: model.contextWindow } : {})
     }),
     protocols: request.value.protocols ?? null,
   } : null;

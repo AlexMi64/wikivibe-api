@@ -166,3 +166,36 @@ test('provider image type selects the native IMAGE role without guessing from it
   assert.equal(catalog.providers.wikivibe.models[0].kind, 'image');
   assert.equal(catalog.providers.wikivibe.models[0].api, 'openai-responses');
 });
+
+test('context choices stay model-local, preserve output limits and restore the original baseline', async t => {
+  const home = await homeFor(t);
+  await put(home, '.config/opencode/opencode.json', JSON.stringify({ provider: { wikivibe: {
+    npm: '@ai-sdk/openai-compatible', options: { baseURL: value.baseUrl, apiKey: value.apiKey },
+    models: { 'gpt-6.1-sol': { limit: { context: 128000, output: 8192 } } }
+  } } }));
+  const input = { ...value, models: [{ id: 'gpt-6.1-sol', contextWindow: 1_050_000 }, { id: 'glm-5.3', contextWindow: 3_000_000 }] };
+  await apply(home, ['codex', 'opencode', 'omp'], input);
+  const oc = (await readJSON(home, '.config/opencode/opencode.json')).provider.wikivibe.models;
+  assert.deepEqual(oc['gpt-6.1-sol'].limit, { context: 1_050_000, output: 8192 });
+  assert.equal(oc['glm-5.3'].limit.context, 3_000_000);
+  const codex = await readJSON(home, '.codex/wikivibe-models.json');
+  assert.equal(codex.models.find(row => row.slug === 'gpt-6.1-sol').context_window, 1_050_000);
+  assert.equal(codex.models.find(row => row.slug === 'glm-5.3').context_window, 3_000_000);
+  const omp = parseDocument(await fs.readFile(path.join(home, '.omp/agent/models.yml'), 'utf8')).toJS();
+  assert.equal(omp.providers.wikivibe.models.find(row => row.id === 'glm-5.3').contextWindow, 3_000_000);
+  await apply(home, ['opencode'], { ...value, models: input.models.map(({ id }) => ({ id })) });
+  const reset = (await readJSON(home, '.config/opencode/opencode.json')).provider.wikivibe.models;
+  assert.deepEqual(reset['gpt-6.1-sol'].limit, { context: 128000, output: 8192 });
+  assert.equal(reset['glm-5.3'].limit?.context, undefined);
+});
+
+test('no context override preserves a later manual context edit', async t => {
+  const home = await homeFor(t);
+  await apply(home, ['opencode'], { ...value, models: [{ id: 'gpt-6.1-sol', contextWindow: 1_000_000 }] });
+  const config = await readJSON(home, '.config/opencode/opencode.json');
+  config.provider.wikivibe.models['gpt-6.1-sol'].limit = { context: 777777, output: 4096 };
+  await put(home, '.config/opencode/opencode.json', JSON.stringify(config));
+  await apply(home, ['opencode'], { ...value, models: [{ id: 'gpt-6.1-sol' }] });
+  assert.deepEqual((await readJSON(home, '.config/opencode/opencode.json')).provider.wikivibe.models['gpt-6.1-sol'].limit,
+    { context: 777777, output: 4096 });
+});

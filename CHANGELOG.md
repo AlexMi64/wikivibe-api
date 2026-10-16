@@ -2,6 +2,17 @@
 
 ## 0.1.0 — unreleased
 
+### Preview 8 — per-model context budgets — 2026-10-17
+
+- Release tag `v0.1.0-preview.8`, bundle version 8. Preview 7 and its published assets remain unchanged. Universal arm64/x86_64 for macOS 15+, ad-hoc signed without Developer ID or notarization; Node.js 22+ is required for agent configuration.
+- Separate Load models and Preview configuration changes steps. Each model of the selected API key has its own context budget, presets through 2M and custom positive token counts above 2M. Preferences are scoped by account/key/gateway; no secrets are saved in UserDefaults. Confirmation lists the selected budgets read-only.
+- Native fields: Codex catalog `context_window`, OpenCode `limit.context` with existing output limits retained, and oh-my-pi `contextWindow`. Claude Code receives no invented context-capacity fields or compaction changes. Codex global overrides and existing client/project settings may take precedence.
+- No override returns to the original baseline only for unchanged managed files; later manual context edits are preserved. Existing preview/fingerprint/backup/conflict protections apply. Context changes invalidate the confirmation; key/gateway changes discard stale model responses, while changing agents retains the catalog.
+- Exact-ID official source links checked 2026-10-17 distinguish Gemini's 1,048,576-token input limit from total context and warn that Google shut down Flash-Lite Preview. Unknown IDs do not inherit limits by similar names. Provider documentation and the local budget do not establish the WikiVibe gateway's capacity or increase it. Output limits, reasoning and image-delivery limitations are unchanged.
+- Verification: 10 native adapter regressions passed, including distinct model budgets, output-limit preservation, baseline reset and later manual edits. Real runner subprocess smoke used an isolated HOME and synthetic key: changed-context confirmation was refused, then confirmed apply wrote independent 1,050,000 / 3,000,000-token budgets. No inference requests or real agent-config writes were used.
+- Targeted Swift verification passed: 14 `WikiVibeKeysTests`, zero failures, including account/key/gateway context isolation, persistence after clear/reload and invalidation before any file write. A throwaway synthetic-auth harness opened the real SwiftUI card with separate model pickers, source links, custom token fields and Claude/precedence warnings; a 3,000,000-token value was entered. The harness was removed. This does not claim pixel-perfect layout verification or real-provider capacity validation.
+- Release packaging completed: bundle version 8, universal x86_64/arm64, deep/strict all-architecture signature verification and DMG checksum verification passed. Signing remains ad-hoc, not Developer ID/notarized. Published DMG SHA-256: `6ee961cdd7e63b00ab0b65941d5300433ffd59a22348521e58c719e31b9633a3`.
+
 ### Preview 7 — model catalogs and protected native-only migration — 2026-10-16
 
 - Release tag `v0.1.0-preview.7`, bundle version 7, marketing version `0.1.0`. Released at the user's request with the known image-delivery limitations below; this is not an all-agent image-generation fix. Universal arm64/x86_64 for macOS 15+, locally ad-hoc signed without Developer ID or Apple notarization; Node.js 22+ is required separately for agent configuration. Preview 6 artifacts remain unchanged.

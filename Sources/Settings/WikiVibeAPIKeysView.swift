@@ -10,8 +10,9 @@ struct WikiVibeAPIKeysView: View {
                 Text(L10n.t("Sign in to load API keys from your account.")).foregroundStyle(.secondary)
             } else {
                 keyControls
-                Divider()
                 agentControls
+                Divider()
+                contextControls
                 if let error = model.error {
                     Text(error).font(.callout).foregroundStyle(.red).textSelection(.enabled)
                         .accessibilityIdentifier("keys.error")
@@ -97,17 +98,84 @@ struct WikiVibeAPIKeysView: View {
             if WikiVibeAgentService.nodeURL == nil {
                 Text(WikiVibeKeysError.nodeMissing.localizedDescription).font(.caption).foregroundStyle(.secondary)
             }
-            Button(L10n.t("Load models and preview…")) {
+            Button(L10n.t("Load models")) {
+                Task { await model.loadModels(auth: auth) }
+            }
+            .accessibilityIdentifier("keys.loadModels")
+            .disabled(model.isBusy || model.selectedKey?.isUsable != true)
+            Button(L10n.t("Preview configuration changes…")) {
                 Task { await model.prepare(auth: auth) }
             }
             .accessibilityIdentifier("keys.preview")
-            .disabled(!model.canPreview || WikiVibeAgentService.nodeURL == nil)
+            .disabled(!model.canPreview || model.models.isEmpty || WikiVibeAgentService.nodeURL == nil)
             Button(L10n.t("Preview restoring agent backups…")) {
                 Task { await model.prepare(auth: auth, restore: true) }
             }
             .font(.caption)
             .accessibilityIdentifier("keys.restore")
             .disabled(model.isBusy || model.agents.isEmpty || WikiVibeAgentService.nodeURL == nil)
+        }
+    }
+
+    private var contextControls: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if !model.models.isEmpty {
+                Divider()
+                Text(L10n.t("Model context windows")).font(.subheadline.weight(.medium))
+                Text(L10n.t("Choose a local budget. No override restores the baseline for unchanged managed files; later manual context edits are kept. This does not increase server capacity."))
+                    .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                ForEach(model.models, id: \.self) { item in
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text(item.id).font(.caption.monospaced()).lineLimit(1)
+                            Spacer()
+                            Picker(L10n.t("Context window"), selection: Binding<Int?>(get: {
+                                model.contextWindows[item.id]
+                            }, set: { value in
+                                if let value { model.contextWindows[item.id] = value }
+                                else { model.contextWindows.removeValue(forKey: item.id) }
+                            })) {
+                                ForEach(Array((Set(WikiVibeKeysController.contextWindowOptions.compactMap { $0 })
+                                    .union(model.contextWindows[item.id].map { [$0] } ?? [])).sorted()), id: \.self) { value in
+                                    Text(WikiVibeKeysController.contextLabel(value)).tag(Optional(value))
+                                }
+                                Text(WikiVibeKeysController.contextLabel(nil)).tag(Int?.none)
+                            }
+                            .labelsHidden()
+                            .accessibilityIdentifier("keys.context.\(item.id)")
+                            .disabled(model.isBusy)
+                        }
+                        if let limit = model.contextWindows[item.id] {
+                            TextField(L10n.t("Custom tokens"), value: Binding<Int>(get: {
+                                model.contextWindows[item.id] ?? limit
+                            }, set: { value in
+                                if value > 0 && value <= 9_007_199_254_740_991 { model.contextWindows[item.id] = value }
+                            }), format: .number.grouping(.never))
+                            .frame(maxWidth: 180)
+                            .accessibilityIdentifier("keys.context.custom.\(item.id)")
+                            .disabled(model.isBusy)
+                        }
+                        HStack(spacing: 6) {
+                            if let documented = item.documentedContextWindow {
+                                Text(item.id.hasPrefix("gemini-")
+                                    ? L10n.t("Documented input limit: \(String(documented)) tokens")
+                                    : L10n.t("Documented provider limit: \(WikiVibeKeysController.contextLabel(documented))"))
+                            } else {
+                                Text(L10n.t("No exact official limit found for this catalog ID."))
+                            }
+                            if let url = item.documentationURL { Link(L10n.t("Source"), destination: url) }
+                        }
+                        .font(.caption2).foregroundStyle(.secondary)
+                        if item.id == "gemini-3.1-flash-lite-preview" {
+                            Text(L10n.t("Google has shut down this preview. Gateway availability is not verified.")).font(.caption2).foregroundStyle(.orange)
+                        }
+                    }
+                }
+                Text(L10n.t("Sources checked 2026-10-17. Provider limits do not confirm gateway capacity. Output and agent headroom reduce usable input."))
+                    .font(.caption2).foregroundStyle(.secondary)
+                Text(L10n.t("Context overrides apply to Codex, OpenCode and oh-my-pi only. Claude Code is not changed. Existing global or extended-context settings can take precedence."))
+                    .font(.caption).foregroundStyle(.secondary)
+            }
         }
     }
 
@@ -123,7 +191,7 @@ struct WikiVibeAPIKeysView: View {
                         DisclosureGroup(L10n.t("View available models")) {
                             VStack(alignment: .leading, spacing: 4) {
                                 ForEach(model.models, id: \.self) { item in
-                                    Text(item.type?.lowercased() == "image" || item.id.hasPrefix("gpt-image-") ? "\(item.id) · image" : item.id).font(.caption.monospaced())
+                                    Text("\(item.id) · \(WikiVibeKeysController.contextLabel(model.contextWindows[item.id]))").font(.caption.monospaced())
                                 }
                             }.frame(maxWidth: .infinity, alignment: .leading)
                         }

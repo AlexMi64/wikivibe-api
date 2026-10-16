@@ -107,6 +107,31 @@ struct WikiVibeModel: Hashable, Sendable {
     let id: String
     let type: String?
     let protocols: [String]?
+    var documentedContextWindow: Int? {
+        switch id {
+        case "gpt-5.5", "gpt-5.6-luna", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-6-astra", "gpt-6-luna", "gpt-6-sol", "gpt-6.1-sol": return 1_050_000
+        case "gemini-3.8-flash", "gemini-3.1-flash-lite-preview": return 1_048_576
+        case "glm-5.3", "glm-5.3-flash": return 1_000_000
+        default: return nil
+        }
+    }
+    var documentationURL: URL? {
+        switch id {
+        case "gpt-5.5": return URL(string: "https://developers.openai.com/api/docs/models/gpt-5.5")
+        case "gpt-5.6-luna": return URL(string: "https://developers.openai.com/api/docs/models/gpt-5.6-luna")
+        case "gpt-5.6-sol": return URL(string: "https://developers.openai.com/api/docs/models/gpt-5.6-sol")
+        case "gpt-5.6-terra": return URL(string: "https://developers.openai.com/api/docs/models/gpt-5.6-terra")
+        case "gpt-6-astra": return URL(string: "https://developers.openai.com/api/docs/models/gpt-6-astra")
+        case "gpt-6-luna": return URL(string: "https://developers.openai.com/api/docs/models/gpt-6-luna")
+        case "gpt-6-sol": return URL(string: "https://developers.openai.com/api/docs/models/gpt-6-sol")
+        case "gpt-6.1-sol": return URL(string: "https://developers.openai.com/api/docs/models/gpt-6.1-sol")
+        case "gemini-3.8-flash": return URL(string: "https://ai.google.dev/gemini-api/docs/models/gemini-3.8-flash")
+        case "gemini-3.1-flash-lite-preview": return URL(string: "https://ai.google.dev/gemini-api/docs/models/gemini-3.1-flash-lite-preview")
+        case "glm-5.3": return URL(string: "https://docs.z.ai/guides/llm/glm-5.3")
+        case "glm-5.3-flash": return URL(string: "https://docs.z.ai/guides/vlm/glm-5.3-flash")
+        default: return nil
+        }
+    }
 }
 /// No response body or upstream diagnostic is surfaced: it may contain a key.
 final class WikiVibeKeysAPI: WikiVibeKeysAPIInterface, @unchecked Sendable {
