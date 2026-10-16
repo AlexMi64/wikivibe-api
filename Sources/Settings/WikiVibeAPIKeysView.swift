@@ -122,7 +122,9 @@ struct WikiVibeAPIKeysView: View {
                         Text(L10n.t("Available models: \(model.models.count)"))
                         DisclosureGroup(L10n.t("View available models")) {
                             VStack(alignment: .leading, spacing: 4) {
-                                ForEach(model.models, id: \.self) { Text($0).font(.caption.monospaced()) }
+                                ForEach(model.models, id: \.self) { item in
+                                    Text(item.type?.lowercased() == "image" || item.id.hasPrefix("gpt-image-") ? "\(item.id) · image" : item.id).font(.caption.monospaced())
+                                }
                             }.frame(maxWidth: .infinity, alignment: .leading)
                         }
                     }
@@ -149,7 +151,7 @@ struct WikiVibeAPIKeysView: View {
                                 .foregroundStyle(.orange)
                         }
                         Text(L10n.t("The model list proves access only to the catalog, not support for streaming, tools, reasoning or image generation."))
-                        Text(L10n.t("All catalog IDs are kept. For images, keep a text model selected: Codex, OpenCode and Claude Code use the local wikivibe_images MCP tool; oh-my-pi uses generate_image. Responses permission and a GPT-5+ carrier are required. Setup does not perform paid generation or change tool-approval rules."))
+                        Text(L10n.t("All catalog IDs are kept. Only the agents' native image features are used; WikiVibe installs no image MCP server or proxy. oh-my-pi: /models > Roles > IMAGE. Image output and reasoning support depend on the client and gateway. Setup never generates images."))
                     }
                     Text(L10n.t("Each file is written separately. A failure can leave partial changes; review the result and use backups when necessary."))
                 }

@@ -36,10 +36,11 @@ final class WikiVibeKeysTests: XCTestCase {
     func testCatalogDeduplicatesAndRefusesSecretEchoes() async throws {
         let service = api { request in
             XCTAssertEqual(request.url?.path, "/v1/models")
-            return (200, #"{"data":[{"id":"z-model"},{"id":"a-model"},{"id":"z-model"}]}"#)
+            return (200, #"{"data":[{"id":"z-model"},{"id":"a-model","type":"image"},{"id":"z-model"}]}"#)
         }
         let models = try await service.models(gateway: .primary, key: "fixture-api-key")
-        XCTAssertEqual(models, ["a-model", "z-model"])
+        XCTAssertEqual(models.map(\.id), ["a-model", "z-model"])
+        XCTAssertEqual(models.first?.type, "image")
         KeysProtocol.handler = { _ in (200, #"{"data":[{"id":"echo-fixture-api-key"}]}"#) }
         do {
             _ = try await service.models(gateway: .primary, key: "fixture-api-key")
@@ -169,32 +170,6 @@ final class WikiVibeKeysTests: XCTestCase {
         XCTAssertEqual((try FileManager.default.attributesOfItem(atPath: config.path)[.posixPermissions] as? NSNumber)?.intValue, 0o600)
         let backup = config.deletingLastPathComponent().appendingPathComponent(".wikivibe-gateway-backups")
         XCTAssertEqual((try FileManager.default.attributesOfItem(atPath: backup.path)[.posixPermissions] as? NSNumber)?.intValue, 0o700)
-    }
-    func testImageToolEditsInvalidateApplyConfirmation() async throws {
-        guard WikiVibeAgentService.nodeURL != nil else { throw XCTSkip("Node.js is not installed") }
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
-        defer { try? FileManager.default.removeItem(at: root) }
-        let service = WikiVibeAgentService(home: root)
-        let value = WikiVibeAgentRequest.Value(apiKey: "fixture-safe-key", baseUrl: WikiVibeGateway.primary.rawValue,
-                                              models: [.init(id: "gpt-image-2"), .init(id: "gpt-6.1-sol")], protocols: nil)
-        var request = WikiVibeAgentRequest(operation: "preview", agentIds: ["codex"], value: value)
-        let preview = try await service.run(request)
-        XCTAssertTrue(preview.failures?.isEmpty == true)
-        request.operation = "apply"; request.fingerprint = preview.fingerprint
-        _ = try await service.run(request)
-        request.operation = "preview"; request.fingerprint = nil
-        let secondPreview = try await service.run(request)
-        let script = root.appendingPathComponent(".codex/wikivibe-images.mjs")
-        let edited = try Data(contentsOf: script) + Data("\n// user edit\n".utf8)
-        try edited.write(to: script)
-        let config = root.appendingPathComponent(".codex/config.toml")
-        let original = try Data(contentsOf: config)
-        request.operation = "apply"; request.fingerprint = secondPreview.fingerprint
-        do { _ = try await service.run(request); XCTFail("Changed image-tool code was accepted") }
-        catch WikiVibeKeysError.conflict { }
-        XCTAssertEqual(try Data(contentsOf: script), edited)
-        XCTAssertEqual(try Data(contentsOf: config), original)
     }
 
     func testOhMyPiExistingImageRoleIsPreserved() async throws {

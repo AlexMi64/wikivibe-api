@@ -38,21 +38,26 @@ function preferences(value, secret = false) {
   // Reject expression-shaped keys rather than letting a consumer execute one.
   if (secret && (typeof value.apiKey !== 'string' || !value.apiKey.trim() || value.apiKey.length > 4096 || /[\s\x00-\x1f\x7f$]/.test(value.apiKey) || value.apiKey.startsWith('!') || /^[A-Z_][A-Z0-9_]*$/.test(value.apiKey))) fail('API-ключ должен содержать само значение ключа, а не команду или имя переменной.');
 }
+function modelId(model) { return typeof model === 'string' ? model : model?.id; }
 function responseAPI(value, model) {
   const allowed = value.protocols;
-  const preferResponses = model.startsWith('gpt-');
+  const id = modelId(model);
+  const preferResponses = isImageModel(model) || id.startsWith('gpt-');
   if (!Array.isArray(allowed)) return preferResponses;
   if (preferResponses && allowed.includes('openai_responses')) return true;
   if (allowed.includes('openai_chat_completions')) return false;
   if (allowed.includes('openai_responses')) return true;
   fail('API-ключ не разрешает протокол OpenAI для этого агента.');
 }
-function isImageModel(id) { return id.startsWith('gpt-image-'); }
-function imageConfiguration(value) {
-  const responses = !Array.isArray(value.protocols) || value.protocols.includes('openai_responses');
-  const carrier = value.models.some(({ id }) => /^gpt-(?:[5-9]|[1-9]\d)(?:[.-]|$)/.test(id));
-  return responses && carrier && value.models.some(({ id }) => isImageModel(id));
+function isImageModel(model) {
+  const id = modelId(model);
+  return (typeof model === 'object' && model?.type?.toLowerCase() === 'image') || (typeof id === 'string' && id.startsWith('gpt-image-'));
 }
+function imageConfiguration(value) {
+  return (!Array.isArray(value.protocols) || value.protocols.includes('openai_responses'))
+    && value.models.some(model => isImageModel(model));
+}
+// Retired Preview 6 resources are enumerated only for protected removal/restore.
 function imagePaths(agent) {
   if (agent.id === 'omp') return [];
   const directory = path.dirname(agent.rel);
@@ -64,26 +69,17 @@ function withImagePaths(agent, paths) {
 function imageCommand(agent, root) {
   return { command: process.execPath, args: imagePaths(agent).map(rel => path.join(root, rel)) };
 }
-function jsonMCP(config, key, agent, value, root, merge, nativeOpenCode = false) {
-  const enabled = value.models.some(({ id }) => isImageModel(id));
-  if (!enabled && !merge) return;
-  if (!enabled && !own(config, key)) return;
-  const servers = child(config, key);
-  const existing = servers.wikivibe_images;
+function removeImageMCP(config, key, agent, root) {
+  const existing = config[key]?.wikivibe_images;
+  if (!existing) return;
   const launch = imageCommand(agent, root);
-  const ours = existing && (agent.id === 'opencode'
+  const ours = agent.id === 'opencode'
     ? JSON.stringify(existing.command) === JSON.stringify([launch.command, ...launch.args])
-    : existing.command === launch.command && JSON.stringify(existing.args) === JSON.stringify(launch.args));
-  if (own(servers, 'wikivibe_images') && (!merge || !ours)) fail('Конфликт: MCP wikivibe_images уже существует или изменён; файл не изменён.');
-  if (!enabled) { delete servers.wikivibe_images; return; }
-  if (merge && !existing) return; // Explicit user removal is not undone.
-  servers.wikivibe_images = agent.id === 'opencode'
-    ? { type: 'local', command: [launch.command, ...launch.args], ...(nativeOpenCode ? { timeout: { execution: 180000 } } : { enabled: true, timeout: 180000 }), ...existing }
-    : { type: 'stdio', ...launch, ...existing };
+    : existing.command === launch.command && JSON.stringify(existing.args) === JSON.stringify(launch.args);
+  if (!ours) fail('Конфликт: бывший MCP wikivibe_images изменён; пользовательский сервер не удалён.');
+  delete config[key].wikivibe_images;
 }
-function tomlMCP(text, agent, value, root, merge) {
-  const enabled = value.models.some(({ id }) => isImageModel(id));
-  if (!enabled && !merge) return text;
+function removeImageToml(text, agent, root) {
   const newline = text.includes('\r\n') ? '\r\n' : '\n';
   const lines = text.trimEnd().split(/\r?\n/);
   if (lines.some(line => /^\s*mcp_servers\s*(?:=|\.)/.test(line) || /^\s*\[\s*["']mcp_servers/.test(line))) fail('Сложная структура MCP TOML не изменяется автоматически.');
@@ -91,14 +87,13 @@ function tomlMCP(text, agent, value, root, merge) {
   if (matches.length > 1) fail('Неоднозначная структура MCP TOML; файл не изменён.');
   const launch = imageCommand(agent, root);
   const block = ['[mcp_servers.wikivibe_images]', `command = ${JSON.stringify(launch.command)}`, `args = ${JSON.stringify(launch.args)}`, 'tool_timeout_sec = 180'];
-  if (!matches.length) return !enabled || merge ? text : `${text.trimEnd()}${newline}${newline}${block.join(newline)}${newline}`;
+  if (!matches.length) return text;
   const start = matches[0];
   if (!/^\s*\[\s*mcp_servers\s*\.\s*(?:wikivibe_images|["']wikivibe_images["'])\s*\]\s*(?:#.*)?$/.test(lines[start])) fail('Сложная структура MCP TOML не изменяется автоматически.');
   let end = start + 1;
   while (end < lines.length && !/^\s*\[/.test(lines[end])) end++;
   const current = lines.slice(start + 1, end).map(line => line.trim());
-  if (!merge || !current.includes(block[1]) || !current.includes(block[2])) fail('Конфликт: MCP wikivibe_images уже существует или изменён; файл не изменён.');
-  if (enabled) return text; // Preserve enabled=false, approval rules and timeouts.
+  if (!current.includes(block[1]) || !current.includes(block[2])) fail('Конфликт: бывший MCP wikivibe_images изменён; пользовательский сервер не удалён.');
   return `${[...lines.slice(0, start), ...lines.slice(end)].join(newline)}${newline}`;
 }
 function object(value) { return value !== null && typeof value === 'object' && !Array.isArray(value); }
@@ -136,7 +131,7 @@ function parseOpenCode(text) {
   if (errors.length || !object(config)) fail('OpenCode: некорректный JSON/JSONC; файл не изменён.');
   return config;
 }
-function openCodeConfig(text, value, agent, root, merge) {
+function openCodeConfig(text, value, agent, root, removeImages) {
   const config = parseOpenCode(text);
   const providers = child(config, 'provider');
   const existing = Object.entries(providers).filter(([, entry]) => wikiRoute(entry?.options?.baseURL));
@@ -147,12 +142,18 @@ function openCodeConfig(text, value, agent, root, merge) {
   const set = (keys, setting) => { output = applyEdits(output, modify(output, keys, setting, { formattingOptions })); };
   for (const [id, entry] of routes) {
     if (entry && !object(entry.models ?? {})) fail('OpenCode: models должен быть объектом.');
-    const models = Object.fromEntries(value.models.map(({ id: model }) => [model, {
-      ...entry?.models?.[model],
-      name: entry?.models?.[model]?.name ?? model,
-      provider: { npm: responseAPI(value, model) ? '@ai-sdk/openai' : '@ai-sdk/openai-compatible' },
-      ...(isImageModel(model) ? { tool_call: false, modalities: { input: ['text', 'image'], output: ['image'] }, name: `${model} · image: use wikivibe_images.generate_image` } : {})
-    }]));
+    const models = Object.fromEntries(value.models.map(model => {
+      const id = model.id;
+      const previous = entry?.models?.[id] ?? {};
+      const next = { ...previous, name: previous.name === `${id} · image: use wikivibe_images.generate_image` ? id : (previous.name ?? id),
+        provider: { npm: responseAPI(value, model) ? '@ai-sdk/openai' : '@ai-sdk/openai-compatible' } };
+      if (previous.name === `${id} · image: use wikivibe_images.generate_image`) {
+        if (next.tool_call === false) delete next.tool_call;
+        if (next.reasoning === false) delete next.reasoning;
+        if (JSON.stringify(next.modalities) === JSON.stringify({ input: ['text', 'image'], output: ['image'] })) delete next.modalities;
+      }
+      return [id, next];
+    }));
     set(['provider', id], {
       ...entry,
       npm: '@ai-sdk/openai-compatible',
@@ -165,14 +166,15 @@ function openCodeConfig(text, value, agent, root, merge) {
     expandAllowlist(config, key, routes.map(([id]) => id), remove);
     if (own(config, key)) set([key], config[key]);
   }
-  const nativeMCP = object(config.mcp) && (own(config.mcp, 'timeout') || (own(config.mcp, 'servers') && !config.mcp.servers?.type));
-  if (nativeMCP) {
-    if (own(config.mcp, 'wikivibe_images')) fail('Конфликт: MCP wikivibe_images одновременно с контейнером OpenCode v2; файл не изменён.');
-    jsonMCP(config.mcp, 'servers', agent, value, root, merge, true);
-    if (own(config.mcp, 'servers')) set(['mcp', 'servers', 'wikivibe_images'], config.mcp.servers.wikivibe_images);
-  } else {
-    jsonMCP(config, 'mcp', agent, value, root, merge);
-    if (own(config, 'mcp')) set(['mcp', 'wikivibe_images'], config.mcp.wikivibe_images);
+  if (removeImages) {
+    const nativeMCP = object(config.mcp) && (own(config.mcp, 'timeout') || (own(config.mcp, 'servers') && !config.mcp.servers?.type));
+    if (nativeMCP) {
+      removeImageMCP(config.mcp, 'servers', agent, root);
+      if (own(config.mcp, 'servers')) set(['mcp', 'servers', 'wikivibe_images'], undefined);
+    } else {
+      removeImageMCP(config, 'mcp', agent, root);
+      if (own(config, 'mcp')) set(['mcp', 'wikivibe_images'], undefined);
+    }
   }
   return output;
 }
@@ -187,12 +189,12 @@ function ompModels(text, value) {
   if (!existing.length && own(config.providers ?? {}, 'wikivibe')) fail('oh-my-pi: wikivibe указывает на другой endpoint; файл не изменён.');
   const [id, entry] = existing[0] ?? ['wikivibe', {}];
   if (!Array.isArray(entry.models ?? [])) fail('oh-my-pi: models должен быть массивом.');
-  const models = value.models.map(({ id: model }) => ({
-    ...entry.models?.find(row => row.id === model),
-    id: model,
+  const models = value.models.map(model => ({
+    ...entry.models?.find(row => row.id === model.id),
+    id: model.id,
     api: isImageModel(model) || responseAPI(value, model) ? 'openai-responses' : 'openai-completions',
-    kind: model.startsWith('gpt-image-') ? 'image' : 'chat',
-    ...(model.startsWith('gpt-image-') ? { supportsTools: false } : {})
+    kind: isImageModel(model) ? 'image' : 'chat',
+    ...(isImageModel(model) ? { supportsTools: false } : {})
   }));
   let output = text;
   for (const [field, setting] of Object.entries({ baseUrl: value.baseUrl, apiKey: value.apiKey, api: 'openai-completions', auth: 'apiKey' })) {
@@ -304,7 +306,7 @@ function addYamlAllowlist(text, models, providerId = 'wikivibe') {
 }
 function ompConfig(text, value, merge = false, providerId = 'wikivibe') {
   let next = addYamlAllowlist(text, value.models, providerId);
-  const image = imageConfiguration(value) ? value.models.find(({ id }) => isImageModel(id)) : undefined;
+  const image = imageConfiguration(value) ? value.models.find(model => isImageModel(model)) : undefined;
   if (!image || merge) return next;
   const config = parseDocument(next || '{}', { uniqueKeys: true });
   if (config.errors.length || config.anchors?.size) fail('oh-my-pi: некорректный YAML; файл не изменён.');
@@ -356,10 +358,10 @@ function tomlConfig(text, value, root, merge = false) {
       currentModel = stringValue(models[0]) ?? currentModel;
     }
   }
-  const models = value.models.filter(({ id }) => !id.startsWith('gpt-image-'));
+  const models = value.models.filter(model => !isImageModel(model));
   const settings = { model_catalog_json: path.join(root, '.codex/wikivibe-models.json') };
   if (models.length) {
-    settings.model = models.some(({ id }) => id === currentModel) ? currentModel : models[0].id;
+    settings.model = value.models.some(({ id }) => id === currentModel) ? currentModel : models[0].id;
     settings.model_provider = 'wikivibe';
   }
   // An image-only catalog must not replace a working text route or profile.
@@ -434,38 +436,42 @@ const CODEX_EFFORTS = [
 // Other required ModelInfo fields remain conservative client metadata, not
 // claims about gateway tools, image support, prices or context limits.
 function codexCatalog(models) {
-  return { models: models.map(({ id }, priority) => ({
-    slug: id, display_name: `WikiVibe · ${id}`, description: id === 'gemini-3.1-flash-lite-preview'
-      ? 'WikiVibe; Google Preview снят с обслуживания, маршрут шлюза и reasoning не проверены.'
-      : isImageModel(id) ? 'Image model: keep a text model selected and call MCP wikivibe_images.generate_image with this exact ID. Not a text-conversation model.'
-        : 'WikiVibe; совместимость Responses и инструментов не проверена.',
-    default_reasoning_level: CODEX_REASONING.get(id)?.[0] ?? null,
-    supported_reasoning_levels: CODEX_EFFORTS.filter(({ effort }) => CODEX_REASONING.get(id)?.[1].includes(effort)),
-    shell_type: 'shell_command',
-    visibility: 'list', supported_in_api: true, priority, availability_nux: null, upgrade: null,
-    base_instructions: 'You are a coding assistant running in Codex. Follow the user request and repository instructions, use the available tools to complete the task, preserve unrelated user changes, and report the changes and actual verification performed.',
-    support_verbosity: false, default_verbosity: null, apply_patch_tool_type: null,
-    supports_reasoning_summary_parameter: false, truncation_policy: { mode: 'bytes', limit: 10000 },
-    supports_reasoning_summaries: false, supports_parallel_tool_calls: false,
-    experimental_supported_tools: [], input_modalities: ['text']
-  })) };
+  return { models: models.map((model, priority) => {
+    const id = model.id;
+    const image = isImageModel(model);
+    return {
+      slug: id, display_name: `WikiVibe · ${id}`, description: id === 'gemini-3.1-flash-lite-preview'
+        ? 'WikiVibe; Google Preview снят с обслуживания, маршрут шлюза и reasoning не проверены.'
+        : image ? 'Image model. Native generation depends on the client and gateway; image reasoning levels are not declared by the catalog.'
+          : 'WikiVibe; совместимость Responses и инструментов не проверена.',
+      default_reasoning_level: CODEX_REASONING.get(id)?.[0] ?? null,
+      supported_reasoning_levels: CODEX_EFFORTS.filter(({ effort }) => CODEX_REASONING.get(id)?.[1].includes(effort)),
+      shell_type: 'shell_command',
+      visibility: 'list', supported_in_api: true, priority, availability_nux: null, upgrade: null,
+      base_instructions: 'You are a coding assistant running in Codex. Follow the user request and repository instructions, use the available native tools to complete the task, preserve unrelated user changes, and report the changes and actual verification performed.',
+      support_verbosity: false, default_verbosity: null, apply_patch_tool_type: null,
+      supports_reasoning_summary_parameter: false, truncation_policy: { mode: 'bytes', limit: 10000 },
+      supports_reasoning_summaries: false, supports_parallel_tool_calls: false,
+      experimental_supported_tools: [], input_modalities: ['text']
+    };
+  }) };
 }
-function render(agent, rel, bytes, value, root, merge = false, providerId = 'wikivibe', imageMerge = false) {
+function render(agent, rel, bytes, value, root, merge = false, providerId = 'wikivibe', removeImages = false) {
   const text = bytes?.toString('utf8') ?? '';
-  if (rel.endsWith('/wikivibe-images.json')) return json({ ...value, models: value.models.map(({ id }) => id) });
   if (agent.id === 'claude' && rel === '.claude.json') {
     const config = parseJSON(bytes);
-    jsonMCP(config, 'mcpServers', agent, value, root, imageMerge);
+    if (removeImages) removeImageMCP(config, 'mcpServers', agent, root);
     return json(config);
   }
-  if (agent.id === 'opencode') return openCodeConfig(text, value, agent, root, imageMerge);
+  if (agent.id === 'opencode') return openCodeConfig(text, value, agent, root, removeImages);
   if (agent.id === 'codex') {
     // The catalog is plugin-owned: later edits are never overwritten.
     if (rel.endsWith('wikivibe-models.json')) {
       if (bytes !== null) fail(merge ? conflict(agent.label) : 'Codex: файл wikivibe-models.json уже существует и не принадлежит плагину.');
       return json(codexCatalog(value.models));
     }
-    return tomlMCP(tomlConfig(text, value, root, merge), agent, value, root, imageMerge);
+    const configured = tomlConfig(text, value, root, merge);
+    return removeImages ? removeImageToml(configured, agent, root) : configured;
   }
   if (agent.id === 'omp') {
     if (/\/config\.ya?ml$/.test(rel)) return ompConfig(text, value, merge, providerId);
@@ -481,7 +487,7 @@ function render(agent, rel, bytes, value, root, merge = false, providerId = 'wik
       // Merge keeps the user's own picker rows and replaces only plugin-labelled ones.
       const options = (picker.options ?? []).filter(row => !(merge && typeof row.label === 'string' && row.label.startsWith('WikiVibe · ')));
       if (options.some(row => value.models.some(model => model.id === row.model))) fail('Claude Code: модель уже существует в пользовательском modelPicker.');
-      picker.options = [...options, ...value.models.map(({ id }) => ({ model: id, label: `WikiVibe · ${id}${isImageModel(id) ? ' · image: use wikivibe_images.generate_image' : ''}` }))];
+      picker.options = [...options, ...value.models.map(({ id }) => ({ model: id, label: `WikiVibe · ${id}` }))];
       picker.replaceBuiltInOptions = true;
       expandAllowlist(config, 'availableModels', value.models.map(({ id }) => id));
       env.ANTHROPIC_BASE_URL = value.baseUrl.slice(0, -3);
@@ -623,6 +629,16 @@ async function plans(root, agents, value, restore = false) {
         // defaults, but it would also drop later user edits. When the file is no
         // longer exactly what the plugin wrote, the plan merges into the current
         // file instead: unrelated edits must never block key rotation.
+        const retiredImage = imagePaths(agent).includes(rel);
+        if (retiredImage || rel === '.claude.json') {
+          if (!backup) continue;
+          if (current === null && backup.record.original === null) {
+            agentPlans.push({ agent, rel, target, current, backup, cleanup: true });
+            continue;
+          }
+          if (!exact && retiredImage) fail('Конфликт: бывший image-ресурс изменён; файл не удалён.');
+          if (exact) { agentPlans.push({ agent, rel, target, current, backup, cleanup: true }); continue; }
+        }
         const merge = Boolean(backup) && (!exact || backup.record.preserveEdits === true);
         if (merge && current === null) fail(`${agent.label}: файл удалён после применения. Восстановите резервную копию или создайте файл заново.`);
         // Migrate the former CLI-only profile, but never remove an unowned or
@@ -633,15 +649,6 @@ async function plans(root, agents, value, restore = false) {
             agentPlans.push({ agent, rel, target, current, backup, cleanup: true });
           }
           continue;
-        }
-        const agentValue = value;
-        const imageResource = imagePaths(agent).includes(rel);
-        const hasImages = value.models.some(({ id }) => isImageModel(id));
-        if (imageResource && current !== null && (!backup || merge) && (hasImages || backup)) fail('Конфликт: файл image-инструмента уже существует или изменён; файл не изменён.');
-        if ((imageResource || rel === '.claude.json') && !hasImages) {
-          if (backup && !merge) agentPlans.push({ agent, rel, target, current, backup, cleanup: true });
-          else if (imageResource || !backup) continue;
-          if (!merge) continue;
         }
         const filters = agent.id === 'omp' && /\/config\.ya?ml$/.test(rel);
         const baseline = backup && !merge ? backup.record.original === null ? null : Buffer.from(backup.record.original.base64, 'base64') : current?.bytes ?? null;
@@ -659,9 +666,7 @@ async function plans(root, agents, value, restore = false) {
             if (route) providerId = route[0];
           }
         }
-        const bytes = rel.endsWith('/wikivibe-images.mjs')
-          ? await fs.readFile(new URL('./image-server.mjs', import.meta.url))
-          : Buffer.from(render(agent, rel, baseline, agentValue, root, merge, providerId, merge && Boolean(priorImages)));
+        const bytes = Buffer.from(render(agent, rel, baseline, value, root, merge, providerId, Boolean(priorImages)));
         const backupDir = path.dirname(backupPath(root, target));
         if (await directories(root, backupDir) && (await fs.lstat(backupDir)).mode % 512 !== 0o700) fail('Каталог резервных копий должен иметь права 0700.');
         agentPlans.push({ agent, rel, target, current, backup, bytes, filters, merge });

@@ -19,7 +19,11 @@ async function fingerprint(preview, request) {
   const value = request.value ? {
     apiKey: request.value.apiKey,
     baseUrl: request.value.baseUrl,
-    models: request.value.models.map(model => typeof model === 'string' ? model : model.id),
+    models: request.value.models.map(model => typeof model === 'string' ? { id: model } : {
+      id: model.id,
+      ...(typeof model.type === 'string' ? { type: model.type } : {}),
+      ...(Array.isArray(model.protocols) ? { protocols: model.protocols } : {})
+    }),
     protocols: request.value.protocols ?? null,
   } : null;
   const operation = request.operation === 'previewRestore' || request.operation === 'restore' ? 'restore' : 'apply';

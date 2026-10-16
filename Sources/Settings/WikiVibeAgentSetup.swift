@@ -2,7 +2,14 @@ import Foundation
 
 struct WikiVibeAgentRequest: Encodable, CustomStringConvertible {
     struct Value: Encodable {
-        struct Model: Encodable { let id: String }
+        struct Model: Encodable {
+            let id: String
+            let type: String?
+            let protocols: [String]?
+            init(id: String, type: String? = nil, protocols: [String]? = nil) {
+                self.id = id; self.type = type; self.protocols = protocols
+            }
+        }
         let apiKey: String
         let baseUrl: String
         let models: [Model]
@@ -109,7 +116,7 @@ struct WikiVibeAgentService {
 @MainActor
 final class WikiVibeKeysController: ObservableObject {
     @Published private(set) var keys = [WikiVibeAccountKey]()
-    @Published private(set) var models = [String]()
+    @Published private(set) var models = [WikiVibeModel]()
     @Published private(set) var isBusy = false
     @Published private(set) var hasLoaded = false
     @Published private(set) var error: String?
@@ -187,7 +194,7 @@ final class WikiVibeKeysController: ObservableObject {
                 try Task.checkCancellation()
                 guard generation == requestID, auth.account?.id == ownerID else { return }
                 models = catalog; chosen = effectiveAgents
-                value = .init(apiKey: secret, baseUrl: gateway.rawValue, models: catalog.map { .init(id: $0) }, protocols: key.protocols)
+                value = .init(apiKey: secret, baseUrl: gateway.rawValue, models: catalog.map { .init(id: $0.id, type: $0.type, protocols: $0.protocols) }, protocols: key.protocols)
             }
             guard !chosen.isEmpty else { throw WikiVibeKeysError.unusableKey }
             let request = WikiVibeAgentRequest(operation: restore ? "previewRestore" : "preview", agentIds: chosen.map(\.rawValue), value: value)

@@ -103,6 +103,11 @@ protocol WikiVibeKeysAPIInterface: Sendable {
     func keys(accessToken: String) async throws -> [WikiVibeAccountKey]
 }
 
+struct WikiVibeModel: Hashable, Sendable {
+    let id: String
+    let type: String?
+    let protocols: [String]?
+}
 /// No response body or upstream diagnostic is surfaced: it may contain a key.
 final class WikiVibeKeysAPI: WikiVibeKeysAPIInterface, @unchecked Sendable {
     private let client: URLSession
@@ -126,7 +131,7 @@ final class WikiVibeKeysAPI: WikiVibeKeysAPIInterface, @unchecked Sendable {
     private struct Envelope<T: Decodable>: Decodable { let code: Int; let data: T? }
     private struct Page: Decodable { let items: [WikiVibeAccountKey]; let pages: Int }
     private struct Models: Decodable {
-        struct Item: Decodable { let id: String }
+        struct Item: Decodable { let id: String; let type: String?; let protocols: [String]? }
         let data: [Item]
     }
     func keys(accessToken: String) async throws -> [WikiVibeAccountKey] {
@@ -155,19 +160,19 @@ final class WikiVibeKeysAPI: WikiVibeKeysAPIInterface, @unchecked Sendable {
         } while page <= 10_000
         throw WikiVibeKeysError.unreadable
     }
-    func models(gateway: WikiVibeGateway, key: String) async throws -> [String] {
+    func models(gateway: WikiVibeGateway, key: String) async throws -> [WikiVibeModel] {
         let data = try await get(gateway.url.appendingPathComponent("models"), bearer: key, account: false)
         guard let models = try? JSONDecoder().decode(Models.self, from: data) else { throw WikiVibeKeysError.unreadable }
+        var result = [WikiVibeModel]()
         var ids = Set<String>()
         for item in models.data {
             guard !item.id.isEmpty, item.id.count <= 256, !item.id.contains(key),
-                  !item.id.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) }) else {
-                throw WikiVibeKeysError.unreadable
-            }
-            ids.insert(item.id)
+                  !item.id.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) }) else { throw WikiVibeKeysError.unreadable }
+            guard ids.insert(item.id).inserted else { continue }
+            result.append(WikiVibeModel(id: item.id, type: item.type, protocols: item.protocols))
         }
-        guard !ids.isEmpty else { throw WikiVibeKeysError.noModels }
-        return ids.sorted()
+        guard !result.isEmpty else { throw WikiVibeKeysError.noModels }
+        return result.sorted { $0.id < $1.id }
     }
     private func get(_ url: URL, bearer: String, account: Bool) async throws -> Data {
         var request = URLRequest(url: url)
