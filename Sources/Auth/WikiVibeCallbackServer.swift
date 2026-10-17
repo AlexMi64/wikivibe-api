@@ -65,7 +65,7 @@ enum WikiVibeCallbackQuery {
     /// loopback feed the app an arbitrary code.
     static func parse(uri: String, expectedState: String) -> WikiVibeCallbackRequest {
         guard let components = URLComponents(string: uri) else {
-            return .malformed("unparseable request target")
+            return .mismatch
         }
         guard components.path == WikiVibeAuthContract.callbackPath else {
             return .notFound
@@ -78,13 +78,13 @@ enum WikiVibeCallbackQuery {
             return raw
         }
 
+        guard let state = value("state") else {
+            return .mismatch
+        }
+        guard state == expectedState else { return .mismatch }
         if let error = value("error") {
             return .denied(value("error_description") ?? error)
         }
-        guard let state = value("state") else {
-            return .malformed("missing state")
-        }
-        guard state == expectedState else { return .mismatch }
         guard let code = value("code") else {
             return .malformed("missing code")
         }
@@ -131,7 +131,6 @@ final class WikiVibeCallbackServer: @unchecked Sendable {
         let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
         let promise = group.next().makePromise(of: WikiVibeCallbackOutcome.self)
         let collector = WikiVibeCallbackCollector(promise: promise)
-        let handler = WikiVibeCallbackHandler(expectedState: expectedState, collector: collector)
 
         do {
             let channel = try await ServerBootstrap(group: group)
@@ -141,7 +140,7 @@ final class WikiVibeCallbackServer: @unchecked Sendable {
                         withPipeliningAssistance: false,
                         withErrorHandling: true
                     ).flatMap { @Sendable () -> EventLoopFuture<Void> in
-                        channel.pipeline.addHandler(handler)
+                        channel.pipeline.addHandler(WikiVibeCallbackHandler(expectedState: expectedState, collector: collector))
                     }
                 }
                 .bind(host: WikiVibeAuthContract.callbackHost, port: 0)

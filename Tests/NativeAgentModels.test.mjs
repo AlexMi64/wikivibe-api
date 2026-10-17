@@ -199,3 +199,15 @@ test('no context override preserves a later manual context edit', async t => {
   assert.deepEqual((await readJSON(home, '.config/opencode/opencode.json')).provider.wikivibe.models['gpt-6.1-sol'].limit,
     { context: 777777, output: 4096 });
 });
+
+test('deeply nested YAML is refused without replacing the agent configuration', async t => {
+  const home = await homeFor(t);
+  const source = 'providers: ' + '['.repeat(15000) + '1' + ']'.repeat(15000) + '\n';
+  await put(home, '.omp/agent/models.yml', source);
+  const document = parseDocument(source);
+  assert.ok(document.errors.some(error => error.code === 'RESOURCE_EXHAUSTION'));
+  const result = await applyAgents(['omp'], value, { home });
+  assert.equal(result.failures[0]?.agentId, 'omp');
+  assert.deepEqual(result.applied, []);
+  assert.equal(await fs.readFile(path.join(home, '.omp/agent/models.yml'), 'utf8'), source);
+});

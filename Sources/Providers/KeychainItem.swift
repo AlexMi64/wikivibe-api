@@ -152,6 +152,7 @@ enum KeychainItem {
             kSecAttrService: service,
             kSecAttrAccount: account
         ]
-        return SecItemDelete(query as CFDictionary) == errSecSuccess
+        let status = SecItemDelete(query as CFDictionary)
+        return status == errSecSuccess || status == errSecItemNotFound
     }
 }

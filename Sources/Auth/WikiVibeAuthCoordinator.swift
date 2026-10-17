@@ -67,7 +67,11 @@ final class WikiVibeAuthCoordinator: ObservableObject {
 
     private let api: WikiVibeAuthAPIInterface
     private let store: WikiVibeSessionStoreInterface
+    private let defaults: UserDefaults
+    private let openAuthorizationURL: (URL) -> Bool
+    private static let restoreBlockedKey = "auth.restoreBlockedAfterSignOut"
     private var listener: WikiVibeCallbackServer?
+    private var signInAttempt: UUID?
     private var session: WikiVibeSession?
     private var renewal: (original: WikiVibeSession, task: Task<WikiVibeSession, Error>)?
     private var previousSession: WikiVibeSession?
@@ -76,9 +80,13 @@ final class WikiVibeAuthCoordinator: ObservableObject {
     private var walletTask: Task<Void, Never>?
 
     init(api: WikiVibeAuthAPIInterface = WikiVibeAuthAPI(),
-         store: WikiVibeSessionStoreInterface = KeychainWikiVibeSessionStore()) {
+         store: WikiVibeSessionStoreInterface = KeychainWikiVibeSessionStore(),
+         defaults: UserDefaults = .standard,
+         openAuthorizationURL: @escaping (URL) -> Bool = { NSWorkspace.shared.open($0) }) {
         self.api = api
         self.store = store
+        self.defaults = defaults
+        self.openAuthorizationURL = openAuthorizationURL
     }
 
     /// The account the app is signed in as, for the window's own use.
@@ -98,6 +106,15 @@ final class WikiVibeAuthCoordinator: ObservableObject {
     /// another trip through the browser.
     func restore() async {
         guard case .signedOut = state, session == nil else { return }
+        guard !defaults.bool(forKey: Self.restoreBlockedKey) else {
+            if store.clear() {
+                defaults.removeObject(forKey: Self.restoreBlockedKey)
+                notice = nil
+            } else {
+                notice = L10n.t("The saved session could not be deleted. Automatic sign-in is blocked. Unlock Keychain and restart the app to retry deletion.")
+            }
+            return
+        }
         guard let stored = store.load() else {
             state = .signedOut
             return
@@ -276,14 +293,23 @@ final class WikiVibeAuthCoordinator: ObservableObject {
     /// next sign-in would race it for the callback.
     func signIn() async {
         guard !isBusy else { return }
+        let attempt = UUID()
+        signInAttempt = attempt
         isBusy = true
         notice = nil
         state = .signingIn
-        defer { isBusy = false }
+        defer {
+            isBusy = false
+            if signInAttempt == attempt { signInAttempt = nil }
+        }
 
         do {
             let pkce = try WikiVibePKCE.generate()
             let server = try await WikiVibeCallbackServer.start(expectedState: pkce.state)
+            guard signInAttempt == attempt else {
+                await server.stop()
+                return
+            }
             listener = server
             defer { listener = nil }
 
@@ -291,13 +317,14 @@ final class WikiVibeAuthCoordinator: ObservableObject {
                 pkce: pkce,
                 redirectURI: WikiVibeAuthContract.redirectURI(port: server.port)
             )
-            guard NSWorkspace.shared.open(url) else {
+            guard openAuthorizationURL(url) else {
                 await server.stop()
                 throw WikiVibeAuthError.browserDidNotOpen
             }
 
             let outcome = try await server.waitForCallback(timeout: Self.signInTimeout)
             await server.stop()
+            guard signInAttempt == attempt else { return }
 
             switch outcome {
             case .authorized(let code):
@@ -306,10 +333,12 @@ final class WikiVibeAuthCoordinator: ObservableObject {
                     verifier: pkce.verifier,
                     redirectURI: WikiVibeAuthContract.redirectURI(port: server.port)
                 )
+                guard signInAttempt == attempt else { return }
                 // Stored before it is adopted: a session the app uses but
                 // cannot restore would be lost on the next launch, and the
                 // user would be asked to sign in again for no stated reason.
                 guard store.save(session) else { throw WikiVibeAuthError.storageFailed }
+                defaults.removeObject(forKey: Self.restoreBlockedKey)
                 self.session = session
                 state = .signedIn(session.account)
                 await loadWallet()
@@ -328,18 +357,21 @@ final class WikiVibeAuthCoordinator: ObservableObject {
                 state = .failed(L10n.t("The sign-in response was not usable: \(reason)"))
             }
         } catch let error as WikiVibeAuthError {
+            guard signInAttempt == attempt else { return }
             state = .failed(error.errorDescription ?? L10n.t("Sign-in failed."))
         } catch {
+            guard signInAttempt == attempt else { return }
             state = .failed(error.localizedDescription)
         }
     }
 
     /// Abandon an in-flight sign-in and close its listener.
     func cancelSignIn() async {
-        guard let listener else { return }
-        self.listener = nil
-        await listener.stop()
+        signInAttempt = nil
         if case .signingIn = state { state = .signedOut }
+        let listener = self.listener
+        self.listener = nil
+        await listener?.stop()
     }
 
     // MARK: - Sign out
@@ -371,9 +403,11 @@ final class WikiVibeAuthCoordinator: ObservableObject {
         renewal = nil
         previousSession = nil
         sessionGeneration = UUID()
+        defaults.set(true, forKey: Self.restoreBlockedKey)
         session = nil
-        store.clear()
-        notice = nil
+        let cleared = store.clear()
+        if cleared { defaults.removeObject(forKey: Self.restoreBlockedKey) }
+        notice = cleared ? nil : L10n.t("The saved session could not be deleted. Automatic sign-in is blocked. Unlock Keychain and restart the app to retry deletion.")
         // The money belongs to the session that read it. Leaving it on screen
         // after sign-out would keep showing a balance for an account the app no
         // longer has a session for.

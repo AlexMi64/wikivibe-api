@@ -112,7 +112,15 @@ struct WikiVibeAuthAPI: WikiVibeAuthAPIInterface {
         configuration.httpShouldSetCookies = false
         configuration.urlCache = nil
         configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
-        self.session = URLSession(configuration: configuration)
+        self.session = URLSession(configuration: configuration, delegate: NoRedirects(), delegateQueue: nil)
+    }
+
+    private final class NoRedirects: NSObject, URLSessionTaskDelegate {
+        func urlSession(_ session: URLSession, task: URLSessionTask,
+                        willPerformHTTPRedirection response: HTTPURLResponse,
+                        newRequest request: URLRequest, completionHandler: @escaping (URLRequest?) -> Void) {
+            completionHandler(nil)
+        }
     }
 
     // MARK: - Authorization URL

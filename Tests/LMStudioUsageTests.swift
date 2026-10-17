@@ -143,10 +143,11 @@ final class LMStudioEndpointTests: XCTestCase {
     }
 
     func testTokensAreSplitTheWayLMStudioReadsThem() {
-        let parts = LMStudioCredentials.parts(of: " sk-lm-tL9sH4ED:MQZTWwaOsmlIEKL4EruT\n")
-        XCTAssertEqual(parts, .init(clientIdentifier: "tL9sH4ED", clientPasskey: "MQZTWwaOsmlIEKL4EruT"))
-        for malformed in ["sk-lm-tL9sH4ED", "sk-lm-short:MQZTWwaOsmlIEKL4EruT", "sk-lm-tL9sH4ED:tooshort",
-                          "tL9sH4ED:MQZTWwaOsmlIEKL4EruT", "sk-lm-tL9sH4E!:MQZTWwaOsmlIEKL4EruT", ""] {
+        // Deliberately synthetic: never issued by an LM Studio server.
+        let parts = LMStudioCredentials.parts(of: " sk-lm-TESTONLY:00000000000000000000\n")
+        XCTAssertEqual(parts, .init(clientIdentifier: "TESTONLY", clientPasskey: "00000000000000000000"))
+        for malformed in ["sk-lm-TESTONLY", "sk-lm-short:00000000000000000000", "sk-lm-TESTONLY:tooshort",
+                          "TESTONLY:00000000000000000000", "sk-lm-TESTONL!:00000000000000000000", ""] {
             XCTAssertNil(LMStudioCredentials.parts(of: malformed), malformed)
         }
     }

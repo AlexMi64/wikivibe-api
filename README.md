@@ -155,7 +155,7 @@ make test TEST_FLAGS='-only-testing:WikiVibeTests/NotchEdgeTests -only-testing:W
 
 Лицензия проекта — [MIT](LICENSE). Обязательные уведомления об авторских правах и лицензии зависимостей сохранены в репозитории и ресурсах приложения.
 
-Настройка агентов использует встроенные jsonc-parser 3.3.1 (MIT) и yaml 2.8.1 (ISC). Тексты лицензий включены в `Sources/Resources/AgentSetup/JSONC-PARSER-LICENSE.txt` и `YAML-LICENSE.txt` и поставляются в приложении.
+Настройка агентов использует встроенные jsonc-parser 3.3.1 (MIT) и yaml 2.8.3 (ISC). Тексты лицензий включены в `Sources/Resources/AgentSetup/JSONC-PARSER-LICENSE.txt` и `YAML-LICENSE.txt` и поставляются в приложении.
 
 Значок WikiVibe взят из локального изображения размером 256×256. Более крупные размеры иконки получены масштабированием, а не из оригинала высокого разрешения. Для публичного распространения бинарной сборки ещё нужны подтверждённые права на бренд и подходящий графический исходник.
 
@@ -312,7 +312,7 @@ Authorization is implemented, but the machine this work was done on has no Xcode
 
 The project uses the [MIT license](LICENSE). Required copyright notices and dependency licenses are preserved in the repository and application resources.
 
-Agent configuration uses bundled jsonc-parser 3.3.1 (MIT) and yaml 2.8.1 (ISC). Their licenses are included in `Sources/Resources/AgentSetup/JSONC-PARSER-LICENSE.txt` and `YAML-LICENSE.txt` and ship with the app.
+Agent configuration uses bundled jsonc-parser 3.3.1 (MIT) and yaml 2.8.3 (ISC). Their licenses are included in `Sources/Resources/AgentSetup/JSONC-PARSER-LICENSE.txt` and `YAML-LICENSE.txt` and ship with the app.
 
 The WikiVibe icon came from a 256×256 local reference image. Larger app-icon sizes are upscaled, not high-resolution originals. Public binary distribution still requires confirmed brand rights and suitable source artwork.
 
@@ -466,6 +466,6 @@ make test TEST_FLAGS='-only-testing:WikiVibeTests/NotchEdgeTests -only-testing:W
 
 项目采用 [MIT 许可证](LICENSE)。必需的版权声明和依赖许可证保留在仓库及应用资源中。
 
-代理配置使用内置的 jsonc-parser 3.3.1（MIT）和 yaml 2.8.1（ISC）。许可证位于 `Sources/Resources/AgentSetup/JSONC-PARSER-LICENSE.txt` 和 `YAML-LICENSE.txt`，并随应用一起提供。
+代理配置使用内置的 jsonc-parser 3.3.1（MIT）和 yaml 2.8.3（ISC）。许可证位于 `Sources/Resources/AgentSetup/JSONC-PARSER-LICENSE.txt` 和 `YAML-LICENSE.txt`，并随应用一起提供。
 
 WikiVibe 图标来自一张 256×256 的本地参考图。较大尺寸是放大生成的，不是高分辨率原图。公开分发二进制版本前，仍需确认品牌使用权，并准备合适的图标源文件。

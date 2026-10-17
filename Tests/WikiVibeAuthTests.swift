@@ -79,8 +79,15 @@ final class WikiVibeAuthTests: XCTestCase {
         )
         XCTAssertEqual(
             WikiVibeCallbackQuery.parse(uri: "/callback?code=abc123", expectedState: state),
-            .malformed("missing state")
+            .mismatch
         )
+    }
+
+    func testForeignErrorCannotCancelPendingSignIn() {
+        let result = WikiVibeCallbackQuery.parse(
+            uri: "/callback?error=access_denied&state=attacker", expectedState: state)
+        XCTAssertEqual(result, .mismatch)
+        XCTAssertNil(result.settlesAs)
     }
 
     func testRefusalKeepsTheServersOwnReason() {
@@ -101,7 +108,7 @@ final class WikiVibeAuthTests: XCTestCase {
     func testOtherPathsAndEmptyValuesAreNotCallbacks() {
         XCTAssertEqual(WikiVibeCallbackQuery.parse(uri: "/favicon.ico", expectedState: state), .notFound)
         XCTAssertEqual(WikiVibeCallbackQuery.parse(uri: "/", expectedState: state), .notFound)
-        XCTAssertEqual(WikiVibeCallbackQuery.parse(uri: "/callback", expectedState: state), .malformed("missing state"))
+        XCTAssertEqual(WikiVibeCallbackQuery.parse(uri: "/callback", expectedState: state), .mismatch)
         XCTAssertEqual(
             WikiVibeCallbackQuery.parse(uri: "/callback?code=&state=\(state)", expectedState: state),
             .malformed("missing code")
@@ -110,11 +117,8 @@ final class WikiVibeAuthTests: XCTestCase {
         XCTAssertEqual(WikiVibeCallbackQuery.parse(uri: "/callback/extra", expectedState: state), .notFound)
     }
 
-    func testUnparseableTargetIsMalformed() {
-        XCTAssertEqual(
-            WikiVibeCallbackQuery.parse(uri: "http://[::1", expectedState: state),
-            .malformed("unparseable request target")
-        )
+    func testUnparseableTargetCannotSettleSignIn() {
+        XCTAssertNil(WikiVibeCallbackQuery.parse(uri: "http://[::1", expectedState: state).settlesAs)
     }
 
     // MARK: - Callback listener
@@ -390,6 +394,66 @@ final class WikiVibeAuthCoordinatorTests: XCTestCase {
         XCTAssertEqual(api.revokedRefreshTokens, ["refresh-1"])
     }
 
+    func testCancelledExchangeCannotSaveSessionOrUnblockRestore() async throws {
+        let suite = "cancel-exchange-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set(true, forKey: "auth.restoreBlockedAfterSignOut")
+        let store = StubSessionStore(session: nil)
+        let api = StubAuthAPI(account: account)
+        let browserOpened = expectation(description: "authorization URL opened")
+        let exchangeStarted = expectation(description: "exchange suspended")
+        var callback: URL?
+        var resumeExchange: CheckedContinuation<WikiVibeSession, Error>?
+        api.exchangeHandler = {
+            try await withCheckedThrowingContinuation { continuation in
+                resumeExchange = continuation
+                exchangeStarted.fulfill()
+            }
+        }
+        let coordinator = WikiVibeAuthCoordinator(api: api, store: store, defaults: defaults,
+            openAuthorizationURL: { url in
+                let query = URLComponents(url: url, resolvingAgainstBaseURL: false)!.queryItems!
+                let redirect = query.first { $0.name == "redirect" }!.value!
+                let state = query.first { $0.name == "state" }!.value!
+                var components = URLComponents(string: redirect)!
+                components.queryItems = [.init(name: "code", value: "synthetic-code"), .init(name: "state", value: state)]
+                callback = components.url!
+                browserOpened.fulfill()
+                return true
+            })
+        let signIn = Task { await coordinator.signIn() }
+        await fulfillment(of: [browserOpened], timeout: 5)
+        _ = try await get(try XCTUnwrap(callback).absoluteString)
+        await fulfillment(of: [exchangeStarted], timeout: 5)
+        await coordinator.cancelSignIn()
+        resumeExchange?.resume(returning: session(expiresIn: 3600))
+        await signIn.value
+        coordinator.stopWalletPolling()
+        XCTAssertNil(store.saved)
+        XCTAssertTrue(defaults.bool(forKey: "auth.restoreBlockedAfterSignOut"))
+        XCTAssertEqual(coordinator.state, .signedOut)
+        XCTAssertEqual(api.walletCount, 0)
+    }
+
+    func testFailedKeychainDeletionBlocksRestoreAcrossInstances() async {
+        let suite = "signout-security-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = StubSessionStore(session: session(expiresIn: 3600))
+        let api = StubAuthAPI(account: account)
+        let first = WikiVibeAuthCoordinator(api: api, store: store, defaults: defaults)
+        await first.restore(); first.stopWalletPolling()
+        store.clearSucceeds = false
+        await first.signOut()
+        XCTAssertNotNil(first.notice)
+        XCTAssertNotNil(store.saved)
+        let next = WikiVibeAuthCoordinator(api: api, store: store, defaults: defaults)
+        await next.restore()
+        XCTAssertEqual(next.state, .signedOut)
+        XCTAssertNotNil(next.notice)
+    }
+
     /// The refresh token is revoked, not every session the account has: signing
     /// out of the Mac must not sign the user out of the website.
     func testSignOutRevokesOnlyTheStoredRefreshToken() async {
@@ -537,6 +601,7 @@ final class WikiVibeAuthCoordinatorTests: XCTestCase {
 private final class StubSessionStore: WikiVibeSessionStoreInterface {
     private(set) var saved: WikiVibeSession?
     private(set) var cleared = false
+    var clearSucceeds = true
 
     init(session: WikiVibeSession?) { self.saved = session }
 
@@ -548,6 +613,7 @@ private final class StubSessionStore: WikiVibeSessionStoreInterface {
     }
 
     func clear() -> Bool {
+        guard clearSucceeds else { return false }
         saved = nil
         cleared = true
         return true
@@ -562,6 +628,7 @@ private final class StubAuthAPI: WikiVibeAuthAPIInterface, @unchecked Sendable {
     var refreshed: WikiVibeSession?
     var wallet: WikiVibeWallet?
     var walletError: WikiVibeAuthError?
+    var exchangeHandler: (() async throws -> WikiVibeSession)?
     private(set) var refreshCount = 0
     private(set) var walletCount = 0
     private(set) var revokedRefreshTokens: [String] = []
@@ -569,10 +636,13 @@ private final class StubAuthAPI: WikiVibeAuthAPIInterface, @unchecked Sendable {
     init(account: WikiVibeAccount) { self.account = account }
 
     func authorizationURL(pkce: WikiVibePKCE, redirectURI: String) throws -> URL {
-        URL(string: "https://auth.wikivibe.dev/login?redirect=\(redirectURI)")!
+        var url = URLComponents(string: "https://auth.example.invalid/login")!
+        url.queryItems = [.init(name: "redirect", value: redirectURI), .init(name: "state", value: pkce.state)]
+        return url.url!
     }
 
     func exchange(code: String, verifier: String, redirectURI: String) async throws -> WikiVibeSession {
+        if let exchangeHandler { return try await exchangeHandler() }
         throw WikiVibeAuthError.tokenExchangeFailed("not used")
     }
 
