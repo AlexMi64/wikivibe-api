@@ -7,7 +7,7 @@ import SwiftUI
 /// started by this product. Usage and balance reading is not implemented: the
 /// app is authorized for the account, not the wallet.
 @MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var fleet: NotchFleet?
     private var preferences: Preferences?
     private var accountWindow: NSWindow?
@@ -30,12 +30,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.preferences = preferences
         let fleet = NotchFleet(scope: preferences.notchScope, edge: preferences.notchEdge)
         self.fleet = fleet
-        fleet.onOpenSettings = { [weak self] in self?.openSettings() }
+        fleet.onOpenSettings = { [weak self] in self?.toggleAccountWindow() }
         fleet.onTopUp = { [weak self] in self?.openTopUp() }
         // The notch has nothing to poll: this app reads the account, not usage.
-        // A refresh click opens the window that can change the account state.
-        fleet.onRefresh = { [weak self] in self?.openSettings() }
-        fleet.onRefreshProvider = { [weak self] _ in self?.openSettings() }
+        // Widget clicks toggle the account window instead of polling usage.
+        fleet.onRefresh = { [weak self] in self?.toggleAccountWindow() }
+        fleet.onRefreshProvider = { [weak self] _ in self?.toggleAccountWindow() }
         fleet.onReposition = { [weak preferences] offset in
             guard let preferences else { return }
             preferences.setOffset(offset, for: preferences.notchEdge)
@@ -152,6 +152,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem = item
     }
 
+    private func toggleAccountWindow() {
+        if let window = accountWindow, window.isVisible || window.isMiniaturized {
+            window.performClose(nil)
+        } else {
+            openSettings()
+        }
+    }
+
+    func windowWillClose(_ notification: Notification) {
+        guard let window = notification.object as? NSWindow, window === accountWindow else { return }
+        // Only the account window closes; the widget, session and polling stay alive.
+        NSApp.setActivationPolicy(.accessory)
+    }
+
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        false
+    }
+
     func openSettings() {
         guard let preferences else { return }
         if accountWindow == nil {
@@ -161,12 +179,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             )
             window.title = "WikiVibe"
             window.isReleasedWhenClosed = false
+            window.delegate = self
             window.contentView = NSHostingView(rootView: WikiVibeAccountView(auth: auth, preferences: preferences))
             window.contentMinSize = NSSize(width: 420, height: 360)
             if !window.setFrameUsingName("WikiVibeAccountWindow") { window.center() }
             window.setFrameAutosaveName("WikiVibeAccountWindow")
             accountWindow = window
         }
+        NSApp.setActivationPolicy(.regular)
+        if accountWindow?.isMiniaturized == true { accountWindow?.deminiaturize(nil) }
         accountWindow?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
     }

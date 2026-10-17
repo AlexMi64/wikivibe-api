@@ -2,6 +2,13 @@
 
 ## 0.1.0 — unreleased
 
+### Preview 10 — widget window toggle — 2026-10-18
+
+- Release tag `v0.1.0-preview.10`, bundle version 10. Universal arm64/x86_64 for macOS 15+, ad-hoc signed without Developer ID or notarization. Previous releases and repository visibility remain unchanged.
+- Clicking the widget toggles the account window. Opening restores the Dock icon; a second click or the red close button closes the window and removes the running-app Dock presence without terminating the widget or account session. Menu and Dock reopen actions still open the window rather than toggling it. Minimized windows count as open for the widget toggle.
+- Verified with the actual AppDelegate in an isolated AppKit smoke using synthetic dependencies: every widget callback (settings, account row and refresh) closes/restores the window and Dock; the red close button hides both; repeated account-menu opens stay visible; minimized windows close and reopen correctly; closing the last window does not terminate the app.
+- Packaging verified: executable contains x86_64 and arm64, bundle version 10; deep/strict signatures for all architectures and DMG integrity passed. DMG SHA-256: `6899ff30e2b6e9892f86c3011c3cf60a6e69af9d683e0a57b6843b515d04bbae`.
+
 ### Preview 9 — security fixes — 2026-10-17
 
 - Release tag `v0.1.0-preview.9`, bundle version 9. Universal arm64/x86_64 for macOS 15+, ad-hoc signed without Developer ID or notarization; Node.js 22+ remains required for agent configuration. Preview 8 and its published assets remain unchanged. Repository visibility is unchanged.
