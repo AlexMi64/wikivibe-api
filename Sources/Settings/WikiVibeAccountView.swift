@@ -6,6 +6,7 @@ import SwiftUI
 struct WikiVibeAccountView: View {
     @ObservedObject var auth: WikiVibeAuthCoordinator
     @ObservedObject var preferences: Preferences
+    @ObservedObject var performance: WikiVibePerformanceStore
     @State private var browserOpenFailed = false
     @State private var isCustomizing = false
 
@@ -249,6 +250,7 @@ struct WikiVibeAccountView: View {
         .accessibilityLabel(L10n.t("Open the website"))
     }
 
+    @ViewBuilder
     private var appearanceControls: some View {
         Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 12) {
             formRow(L10n.t("Language")) {
@@ -275,6 +277,47 @@ struct WikiVibeAccountView: View {
                 }
             }
         }
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(L10n.t("Model speed in widget")).font(.subheadline.bold())
+                Spacer()
+                Button(L10n.t("Refresh")) { Task { await performance.refresh() } }
+                    .disabled(performance.isRefreshing)
+            }
+            Text(L10n.t("Public traffic over 24 hours. TPS includes first-token waiting; reasoning is counted as reported by the provider. Only selected models are polled every 5 minutes; the catalog is cached for an hour."))
+                .font(.caption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            if performance.catalogFailed {
+                Text(L10n.t("Could not load server performance.")).foregroundStyle(.secondary)
+            } else if performance.models.isEmpty {
+                Text(L10n.t("Loading server performance…")).foregroundStyle(.secondary)
+            }
+            ForEach(performance.models) { model in
+                HStack {
+                    Toggle(model.displayName, isOn: Binding(
+                        get: { performance.selectedIDs.contains(model.id) },
+                        set: {
+                            performance.setSelected(model.id, enabled: $0)
+                            Task { await performance.refresh() }
+                        }
+                    ))
+                    .toggleStyle(.checkbox)
+                    .accessibilityIdentifier("performance.model." + model.id)
+                    Spacer(minLength: 8)
+                    TimelineView(.periodic(from: .now, by: 60)) { _ in
+                        HStack(spacing: 4) {
+                            Text(performance.isStale(model.id) ? "— tok/s" : performance.speedText(for: model.id))
+                                .monospacedDigit().foregroundStyle(.secondary)
+                            if performance.isStale(model.id) {
+                                Image(systemName: "exclamationmark.triangle")
+                                    .help(L10n.t("Reading is stale; check its date."))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        .padding(.top, 12)
     }
 
     private func formRow<Control: View>(_ title: String, @ViewBuilder control: () -> Control) -> some View {

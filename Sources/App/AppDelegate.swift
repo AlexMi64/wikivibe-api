@@ -2,10 +2,7 @@ import AppKit
 import Combine
 import SwiftUI
 
-/// WikiVibe owns its account session. Upstream credential discovery, agent
-/// monitoring, local cost indexing, phone serving and update feeds are not
-/// started by this product. Usage and balance reading is not implemented: the
-/// app is authorized for the account, not the wallet.
+/// Account and public gateway statistics only; no agent or credential discovery.
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var fleet: NotchFleet?
@@ -16,6 +13,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     /// Owns the account session. Created on launch so the stored session is
     /// restored before the window first draws.
     private let auth = WikiVibeAuthCoordinator()
+    private let performance = WikiVibePerformanceStore()
 
     static func drawn(_ snapshots: [ProviderSnapshot], weekly: Bool, paced: Bool)
     -> [ProviderSnapshot] {
@@ -66,6 +64,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 DispatchQueue.main.async { self?.updateLocalizedSurface() }
             }
             .store(in: &cancellables)
+        performance.objectWillChange
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                DispatchQueue.main.async { self?.updateLocalizedSurface() }
+            }
+            .store(in: &cancellables)
+        performance.start()
         fleet.show()
         // A stored session is picked up before the window can ask, so the
         // account row never briefly claims the user is signed out.
@@ -78,13 +83,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             title: auth.account == nil ? L10n.t("Sign in to WikiVibe…") : L10n.t("WikiVibe account…"),
             action: { [weak self] in self?.openSettings() }
         )]
-        fleet?.setSnapshots([accountSnapshot])
+        fleet?.setSnapshots([accountSnapshot] + performance.snapshots)
         installMenu()
     }
 
-    /// The one row this app draws. It reports the account and, when the server
-    /// has answered, its balance: the money is a real reading with a real unit,
-    /// and the row's number is the regular balance, not a fabricated fraction.
+    /// The account cell keeps balance separate from public model performance.
     private var accountSnapshot: ProviderSnapshot {
         let status: ProviderStatus
         let plan: String?
@@ -180,7 +183,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             window.title = "WikiVibe"
             window.isReleasedWhenClosed = false
             window.delegate = self
-            window.contentView = NSHostingView(rootView: WikiVibeAccountView(auth: auth, preferences: preferences))
+            window.contentView = NSHostingView(rootView: WikiVibeAccountView(auth: auth, preferences: preferences, performance: performance))
             window.contentMinSize = NSSize(width: 420, height: 360)
             if !window.setFrameUsingName("WikiVibeAccountWindow") { window.center() }
             window.setFrameAutosaveName("WikiVibeAccountWindow")
@@ -214,6 +217,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let listener = auth
         Task { await listener.cancelSignIn() }
         auth.stopWalletPolling()
+        performance.stop()
         fleet?.stop()
         if let statusItem { NSStatusBar.system.removeStatusItem(statusItem) }
     }

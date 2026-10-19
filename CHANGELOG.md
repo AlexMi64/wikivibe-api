@@ -2,6 +2,13 @@
 
 ## 0.1.0 — unreleased
 
+### Preview 11 — public model TPS — 2026-10-19
+
+- Public marketplace model selection and server TPS cells, independent of account credentials. Public catalog `/api/v1/marketplace/models`; per-model `/performance?hours=24`. Mean per-request output/full-duration includes TTFT, not pure streaming speed; reasoning follows provider reporting. The hover card shows TTFT, sample count and full date. No inference, agent log indexing or credentials are used.
+- Only selected models are polled sequentially every five minutes, at most once per minute per model; catalog cache one hour. Missing summary/metrics remain unknown; partial failures retain explicitly stale readings. Old successful coverage (>15 minutes old or >5 minutes in the future) remains stale.
+- First independent Codex security review found missing coverage freshness validation; fixed above with boundary regression. Second pass found the same freshness predicate was missing in settings; fixed with a shared `isStale` predicate and time-driven stale display. Live public API smoke confirmed 15 catalog models and measurements without authentication. Focused regression suite: 29 Swift tests and 11 Node tests passed; three-language settings/card smoke rendered model speed, TTFT, samples and date without credentials.
+- Release packaging: bundle version 11, x86_64 and arm64 executable, deep/strict all-architecture signature verification and DMG integrity passed. SHA-256: `534632ae7197992d321f44cb89eb24481cfda68c73240fe3e7fd825e1a219534`. Ad-hoc signing, without Developer ID or notarization.
+
 ### Preview 10 — widget window toggle — 2026-10-18
 
 - Release tag `v0.1.0-preview.10`, bundle version 10. Universal arm64/x86_64 for macOS 15+, ad-hoc signed without Developer ID or notarization. Previous releases and repository visibility remain unchanged.
