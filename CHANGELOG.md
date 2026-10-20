@@ -2,6 +2,12 @@
 
 ## 0.1.0 — unreleased
 
+### Preview 12 — TPS in the balance hover card — 2026-10-20
+
+- Corrected Preview 11's placement: selecting models no longer creates extra widget cells. Only the balance cell remains; selected public model metrics appear in its hover card, in a bounded scrolling section. Balance remains the headline, including when no balance has been loaded. Account sign-in status remains independent of public performance data.
+- Verification: 13 targeted Swift tests and 11 Node tests passed. Native SwiftUI smoke on English/Russian/Simplified Chinese showed one balance cell and TPS in its hover card; scrolling reached the final model in a 15-model fixture. No live credentials were used. The public API and polling policy are unchanged from Preview 11.
+- Universal x86_64/arm64 build 12 packaged successfully; deep/strict signature verification and DMG integrity passed. SHA-256: `d41642185da914b1aa4307b8ab45ca8f63ee598bbd8bec38d417a965c8c2f3bd`. Ad-hoc signed, without notarization.
+
 ### Preview 11 — public model TPS — 2026-10-19
 
 - Public marketplace model selection and server TPS cells, independent of account credentials. Public catalog `/api/v1/marketplace/models`; per-model `/performance?hours=24`. Mean per-request output/full-duration includes TTFT, not pure streaming speed; reasoning follows provider reporting. The hover card shows TTFT, sample count and full date. No inference, agent log indexing or credentials are used.

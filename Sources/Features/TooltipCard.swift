@@ -613,7 +613,6 @@ private struct ProviderTooltip: View {
         VStack(alignment: .leading, spacing: 0) {
             TooltipHeader(title: snapshot.kind == .localRuntime
                           ? L10n.t("\(snapshot.localModel?.brand?.displayName ?? snapshot.displayName) · Local")
-                          : snapshot.headline?.id == "server-tps" ? snapshot.displayName
                           : L10n.t("\(snapshot.displayName) Usage"),
                           subtitle: snapshot.plan,
                           note: activityNote ?? (snapshot.localModel?.brand != nil ? snapshot.displayName : readingAge)) {
@@ -1134,7 +1133,8 @@ struct TooltipCard: View {
             compactRowCount: snapshot.compactRowCount,
             showsDeepSeekPricing: deepSeekPricingEnabled,
             costRows: costRows,
-            hasTopUpAction: onTopUp != nil
+            hasTopUpAction: onTopUp != nil,
+            serverPerformanceRowCount: snapshot.serverPerformanceRows.count
         )
     }
 
@@ -1148,6 +1148,27 @@ struct TooltipCard: View {
                 VStack(alignment: .leading, spacing: 0) {
                     ProviderTooltip(activityNote: localActivityNote, snapshot: snapshot, now: now, resetTimeFormat: resetTimeFormat,
                                     showUsagePace: showUsagePace)
+                    if !snapshot.serverPerformanceRows.isEmpty {
+                        VStack(alignment: .leading, spacing: NotchLayout.blockSpacing) {
+                            VStack(alignment: .leading, spacing: 0) {
+                                Text(L10n.t("Public traffic · 24 h · not your request"))
+                                Text(L10n.t("TPS including first-token wait"))
+                            }
+                            .font(Typography.cardBody)
+                            .foregroundStyle(Palette.textSecondary)
+                            .frame(height: 2 * NotchLayout.cardBodyLineHeight, alignment: .leading)
+                            ScrollView(.vertical) {
+                                VStack(alignment: .leading, spacing: NotchLayout.blockSpacing) {
+                                    ForEach(snapshot.serverPerformanceRows) { row in
+                                        SplitRow(leading: row.label, trailing: row.detail ?? row.usedText ?? "—")
+                                    }
+                                }
+                            }
+                            .frame(height: NotchLayout.serverPerformanceHeight(rowCount: snapshot.serverPerformanceRows.count)
+                                - 2 * NotchLayout.blockSpacing - 2 * NotchLayout.cardBodyLineHeight)
+                        }
+                        .padding(.top, NotchLayout.blockSpacing)
+                    }
                     if let resetCredits = snapshot.availableResetCredits(at: now) {
                         UsageResetCreditsSection(credits: resetCredits, now: now)
                     }

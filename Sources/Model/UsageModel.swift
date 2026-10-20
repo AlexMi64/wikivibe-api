@@ -286,6 +286,8 @@ struct ProviderSnapshot: Identifiable, Equatable {
     let fidelity: Fidelity
     var status: ProviderStatus
     var windows: [LimitWindow]
+    /// Public server metrics belong only to the hover card, never the cell headline.
+    var serverPerformanceRows: [LimitWindow] = []
     /// Which window the ring means, declared by the provider rather than left to
     /// position. Without it the headline is "whichever window happens to be
     /// first", and a window dropping out of the response silently promotes

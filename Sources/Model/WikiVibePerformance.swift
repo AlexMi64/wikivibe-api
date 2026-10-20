@@ -211,29 +211,25 @@ final class WikiVibePerformanceStore: ObservableObject {
         catalogFailed || failedIDs.contains(id) || readings[id].map { !$0.isFresh(at: now()) } == true
     }
 
-    var snapshots: [ProviderSnapshot] {
-        selectedIDs.compactMap { id in
-            guard let model = models.first(where: { $0.id == id }) else { return nil }
+    /// Rows for the account hover card; model IDs never become widget cells.
+    var accountRows: [LimitWindow] {
+        selectedIDs.flatMap { id -> [LimitWindow] in
+            guard let model = models.first(where: { $0.id == id }) else { return [] }
             let reading = readings[id]
             let stale = isStale(id)
-            let status: ProviderStatus = stale
-                ? reading.map { .stale(since: $0.coverage.end) } ?? .error(L10n.t("Could not load server performance."))
-                : .ok
-            var rows = [metric("server-tps", L10n.t("TPS including first-token wait"), speedText(for: id))]
+            var rows = [metric("server-tps:\(id)", model.displayName, stale ? "— tok/s" : speedText(for: id))]
             if let reading {
                 if let summary = reading.summary {
-                    rows.append(metric("samples", L10n.t("Metric samples"), summary.metricSampleCount.formatted()))
+                    rows.append(metric("samples:\(id)", L10n.t("Metric samples"), summary.metricSampleCount.formatted()))
                 }
                 if let seconds = reading.summary?.firstTokenSeconds {
-                    rows.append(metric("ttft", L10n.t("First token"), seconds.formatted(.number.precision(.fractionLength(0...1))) + " s"))
+                    rows.append(metric("ttft:\(id)", L10n.t("First token"), seconds.formatted(.number.precision(.fractionLength(0...1))) + " s"))
                 }
-                rows.append(metric("as-of", L10n.t("As of"), reading.coverage.end.formatted(date: .abbreviated, time: .shortened)))
+                rows.append(metric("as-of:\(id)", L10n.t("As of"), reading.coverage.end.formatted(date: .abbreviated, time: .shortened)))
             }
-            if stale { rows.append(metric("stale", L10n.t("Status"), L10n.t(reading == nil ? "Could not load server performance." : "Reading is stale; check its date."))) }
-            else if reading == nil { rows.append(metric("loading", L10n.t("Status"), L10n.t("Loading server performance…"))) }
-            return ProviderSnapshot(id: "wikivibe-tps:" + id, displayName: model.displayName, glyph: .wikivibe,
-                                    fidelity: .official, status: status, windows: rows,
-                                    plan: L10n.t("Public traffic · 24 h · not your request"))
+            if stale { rows.append(metric("status:\(id)", L10n.t("Status"), L10n.t(reading == nil ? "Could not load server performance." : "Reading is stale; check its date."))) }
+            else if reading == nil { rows.append(metric("status:\(id)", L10n.t("Status"), L10n.t("Loading server performance…"))) }
+            return rows
         }
     }
     private func metric(_ id: String, _ label: String, _ text: String) -> LimitWindow {

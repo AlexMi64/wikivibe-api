@@ -596,7 +596,8 @@ struct NotchRootView: View {
             localLedgerRows: snapshot.localLedgerRowCount,
             compactRowCount: snapshot.compactRowCount,
             showsDeepSeekPricing: model.deepSeekPricingEnabled,
-            hasTopUpAction: model.topUpAction(for: snapshot) != nil)
+            hasTopUpAction: model.topUpAction(for: snapshot) != nil,
+            serverPerformanceRowCount: snapshot.serverPerformanceRows.count)
     }
 
     private func tooltipTailOffset(index: Int, snapshot: ProviderSnapshot) -> CGFloat {

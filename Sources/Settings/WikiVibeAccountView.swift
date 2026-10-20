@@ -279,7 +279,7 @@ struct WikiVibeAccountView: View {
         }
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text(L10n.t("Model speed in widget")).font(.subheadline.bold())
+                Text(L10n.t("Model speed in hover card")).font(.subheadline.bold())
                 Spacer()
                 Button(L10n.t("Refresh")) { Task { await performance.refresh() } }
                     .disabled(performance.isRefreshing)

@@ -383,6 +383,12 @@ enum NotchLayout {
             + blockSpacing + 2 * chart + usageDetailChartGap
     }
 
+    static func serverPerformanceHeight(rowCount: Int) -> CGFloat {
+        guard rowCount > 0 else { return 0 }
+        return blockSpacing + 2 * cardBodyLineHeight + blockSpacing
+            + min(240, CGFloat(rowCount) * (cardBodyLineHeight + blockSpacing) - blockSpacing)
+    }
+
     static func cardHeight(windowCount: Int, groupCount: Int = 0,
                            moneyWindowCount: Int = 0, usageDetailGroupCount: Int = 0,
                            sessionCount: Int = 0,
@@ -397,11 +403,13 @@ enum NotchLayout {
                            compactRowCount: Int = 0,
                            showsDeepSeekPricing: Bool = true,
                            costRows: Int = 0,
-                           hasTopUpAction: Bool = false) -> CGFloat {
+                           hasTopUpAction: Bool = false,
+                           serverPerformanceRowCount: Int = 0) -> CGFloat {
         let header = max(glyphSize, cardTitleLineHeight)
             + (hasPlan ? cardBodyLineHeight : 0)
         var height = 2 * cardPadding + header
         if hasTopUpAction { height += blockSpacing + topUpButtonHeight }
+        height += serverPerformanceHeight(rowCount: serverPerformanceRowCount)
 
         // The blocked line sits under the header, above everything else — it
         // is the reading that stops you working, so it leads.

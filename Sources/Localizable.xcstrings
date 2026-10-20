@@ -59838,7 +59838,7 @@
         }
       }
     },
-    "Model speed in widget": { "extractionState": "manual", "localizations": { "ru": { "stringUnit": { "state": "translated", "value": "Скорость моделей в виджете" } }, "zh-Hans": { "stringUnit": { "state": "translated", "value": "小组件中的模型速度" } } } },
+    "Model speed in hover card": { "extractionState": "manual", "localizations": { "ru": { "stringUnit": { "state": "translated", "value": "Скорость моделей во всплывающей карточке" } }, "zh-Hans": { "stringUnit": { "state": "translated", "value": "悬浮卡片中的模型速度" } } } },
     "TPS including first-token wait": { "extractionState": "manual", "localizations": { "ru": { "stringUnit": { "state": "translated", "value": "TPS с ожиданием" } }, "zh-Hans": { "stringUnit": { "state": "translated", "value": "含首令牌等待的 TPS" } } } },
     "Metric samples": { "extractionState": "manual", "localizations": { "ru": { "stringUnit": { "state": "translated", "value": "Измерений" } }, "zh-Hans": { "stringUnit": { "state": "translated", "value": "测量样本" } } } },
     "First token": { "extractionState": "manual", "localizations": { "ru": { "stringUnit": { "state": "translated", "value": "Первый токен" } }, "zh-Hans": { "stringUnit": { "state": "translated", "value": "首个令牌" } } } },

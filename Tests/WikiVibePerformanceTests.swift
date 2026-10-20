@@ -3,6 +3,21 @@ import XCTest
 
 @MainActor
 final class WikiVibePerformanceTests: XCTestCase {
+    func testHoverPerformanceDoesNotCreateCellsOrReplaceBalance() {
+        let rows = (0..<15).map { LimitWindow(id: "server-tps:\($0)", label: "Model \($0)", usedText: "40 tok/s", detail: "40 tok/s") }
+        var account = ProviderSnapshot(id: "wikivibe", displayName: "WikiVibe", glyph: .wikivibe,
+            fidelity: .official, status: .ok,
+            windows: [LimitWindow(id: "balance", label: "Balance", usedText: "$12.50")],
+            serverPerformanceRows: rows, headlineID: "balance")
+        XCTAssertEqual(account.notchSnapshots.map(\.id), ["wikivibe"])
+        XCTAssertEqual(account.headlineText, "$12.50")
+        account.windows = []
+        XCTAssertEqual(account.headlineText, "—")
+        XCTAssertFalse(account.hasReading)
+        XCTAssertEqual(account.serverPerformanceRows.map(\.id), rows.map(\.id))
+        XCTAssertEqual(NotchLayout.serverPerformanceHeight(rowCount: 60), NotchLayout.serverPerformanceHeight(rowCount: 600))
+    }
+
     func testMissingSamplesAreNotMeasuredZeroAndMeasuredZeroIsValid() {
         let empty = WikiVibePerformanceReading.Summary(metricSampleCount: 0, avgTokensPerSec: 0, avgTtftMs: 0)
         XCTAssertNil(empty.tokensPerSecond)
@@ -27,17 +42,16 @@ final class WikiVibePerformanceTests: XCTestCase {
         await api.failFirst()
         clock.addTimeInterval(300)
         await store.refresh()
-        let first = store.snapshots.first!
-        XCTAssertEqual(first.headlineText, "20 tok/s")
-        XCTAssertTrue(first.status.isStale)
-        XCTAssertNil(first.ringFraction)
-        XCTAssertEqual(store.snapshots.last?.headlineText, "40 tok/s")
-        XCTAssertEqual(store.snapshots.last?.status, .ok)
+        XCTAssertTrue(store.isStale("first"))
+        XCTAssertEqual(store.accountRows.first { $0.id == "server-tps:first" }?.usedText, "— tok/s")
+        XCTAssertEqual(store.accountRows.first { $0.id == "server-tps:second" }?.usedText, "40 tok/s")
+        XCTAssertFalse(store.isStale("second"))
         await api.failCatalog()
         clock.addTimeInterval(3600)
         await store.refresh()
-        XCTAssertEqual(store.snapshots.count, 2)
-        XCTAssertTrue(store.snapshots.allSatisfy { $0.status.isStale })
+        XCTAssertTrue(store.isStale("first"))
+        XCTAssertTrue(store.isStale("second"))
+        XCTAssertTrue(store.accountRows.filter { $0.id.hasPrefix("server-tps:") }.allSatisfy { $0.usedText == "— tok/s" })
     }
 
     func testExplicitEmptySelectionSurvivesRefreshAndNewStore() async {
@@ -49,10 +63,10 @@ final class WikiVibePerformanceTests: XCTestCase {
         await store.refresh()
         for id in store.selectedIDs { store.setSelected(id, enabled: false) }
         await store.refresh()
-        XCTAssertTrue(store.snapshots.isEmpty)
+        XCTAssertTrue(store.accountRows.isEmpty)
         let restored = WikiVibePerformanceStore(api: api, defaults: defaults)
         await restored.refresh()
-        XCTAssertTrue(restored.snapshots.isEmpty)
+        XCTAssertTrue(restored.accountRows.isEmpty)
     }
 
     func testEnvelopeErrorsAndWrongModelCannotBecomeMeasurements() async throws {

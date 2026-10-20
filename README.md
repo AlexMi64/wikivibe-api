@@ -18,7 +18,7 @@ WikiVibe — приложение для macOS с виджетом у края �
 - Баланс аккаунта: обычный, бонусный и замороженный, в единице сервера. Обновляется раз в минуту, и раз в 15 секунд, пока открыто окно.
 - «Пополнить» в раскрываемой карточке виджета открывает `https://api.wikivibe.dev/purchase` в системном браузере. При необходимости сайт попросит отдельный вход; приложение не передаёт токены в URL и не создаёт платёж.
 - Карточка «API-ключи»: ключи авторизованного аккаунта, выбор адреса API и настройка Codex, oh-my-pi, OpenCode и Claude Code с предпросмотром и подтверждением.
-- TPS моделей: в «Виджет и язык» выберите модели публичного каталога. Виджет показывает средний `output_tokens / полное время запроса` за 24 часа, включая ожидание первого токена; рядом в карточке — TTFT и дата. Это публичный standard-трафик шлюза, не скорость вашего запроса. Reasoning включён только в объёме, сообщённом провайдером. Только выбранные модели опрашиваются последовательно раз в 5 минут, не чаще раза в минуту на модель; каталог кэшируется на час. Отсутствующие метрики — `—`, старые данные помечаются устаревшими. Запросы без авторизации и без генерации.
+- TPS моделей: в «Виджет и язык» выберите модели публичного каталога. **Виджет с балансом остаётся один**; TPS, TTFT и дата выбранных моделей показываются только в его всплывающей карточке при наведении. Длинный список прокручивается внутри карточки. TPS — средний `output_tokens / полное время запроса` за 24 часа, включая ожидание первого токена. Это публичный standard-трафик шлюза, не скорость вашего запроса. Reasoning включён только в объёме, сообщённом провайдером. Только выбранные модели опрашиваются последовательно раз в 5 минут, не чаще раза в минуту на модель; каталог кэшируется на час. Отсутствующие или устаревшие метрики — `—`. Запросы без авторизации и без генерации.
 
 Виджет показывает аккаунт, баланс и выбранную публичную статистику TPS моделей. Расходы аккаунта и его статистика использования не читаются. Кнопка «Открыть сайт» ведёт в панель `api.wikivibe.dev`, у которой своя сессия в браузере; вход в приложении её не создаёт, поэтому сайт может попросить пароль — это не сброс входа в приложении.
 
@@ -176,7 +176,7 @@ WikiVibe is a macOS app with a screen-edge widget and a menu-bar entry.
 - The account balance: regular, bonus and on hold, in the server's own unit. Re-read every minute, and every 15 seconds while the window is open.
 - “Top up” in the widget's hover card opens `https://api.wikivibe.dev/purchase` in the system browser. The website may require its own sign-in; the app does not put tokens in the URL or create a payment.
 - API keys card: keys from the signed-in account, API address selection, and Codex, oh-my-pi, OpenCode and Claude Code setup with preview and confirmation.
-- Model TPS: select public-catalog models under Widget and language. The widget shows the mean per-request `output_tokens / full request duration` over 24 hours, including first-token waiting; the hover card adds TTFT and the date. This is public standard gateway traffic, not your request's speed. Reasoning is included only as reported by the provider. Only selected models are polled sequentially every 5 minutes, at most once a minute per model; the catalog is cached for an hour. Missing metrics show `—`; old readings are marked stale. No authentication or inference is used.
+- Model TPS: select public-catalog models under Widget and language. **There is only one balance widget**; selected models' TPS, TTFT and date appear only in its hover card, with internal scrolling for long lists. TPS is the mean per-request `output_tokens / full request duration` over 24 hours, including first-token waiting. This is public standard gateway traffic, not your request's speed. Reasoning is included only as reported by the provider. Only selected models are polled sequentially every 5 minutes, at most once a minute per model; the catalog is cached for an hour. Missing or stale metrics show `—`. No authentication or inference is used.
 
 The widget shows the account, balance and selected public model TPS statistics. Account spending and usage statistics are not read. “Open the website” leads to the `api.wikivibe.dev` panel, which keeps its own session in the browser; signing in here does not create it, so the site may ask for a password — that is not the app's session being lost.
 
@@ -334,7 +334,7 @@ WikiVibe 是一款 macOS 应用，提供屏幕边缘小组件和菜单栏入口�
 - 账号余额：普通、赠送和冻结，使用服务器自己的单位。每分钟刷新一次；窗口打开时每 15 秒刷新一次。
 - 小组件悬浮卡片中的“充值”会在系统浏览器中打开 `https://api.wikivibe.dev/purchase`。网站可能要求单独登录；应用不会在 URL 中传递令牌，也不会创建付款。
 - API 密钥卡片：读取已登录账号的密钥，选择 API 地址，为 Codex、oh-my-pi、OpenCode 和 Claude Code 配置密钥和模型，写入前预览并确认。
-- 模型 TPS：在“小组件与语言”中选择公开目录中的模型。小组件显示过去 24 小时每次请求的 `output_tokens / 完整请求时间` 的平均值，包含首令牌等待；悬浮卡片显示 TTFT 和日期。这是网关的公开 standard 流量，而非当前请求速度。推理令牌以提供商报告为准。仅每 5 分钟依次查询所选模型，每个模型至少间隔一分钟；目录缓存一小时。缺失指标显示 `—`，旧数据标记为过期。无需身份验证，也不执行生成。
+- 模型 TPS：在“小组件与语言”中选择公开目录中的模型。**始终只有一个余额小组件**；所选模型的 TPS、TTFT 和日期仅在该小组件的悬浮卡片中显示，长列表可在卡片内滚动。TPS 是过去 24 小时每次请求的 `output_tokens / 完整请求时间` 的平均值，包含首令牌等待。这是网关的公开 standard 流量，而非当前请求速度。推理令牌以提供商报告为准。仅每 5 分钟依次查询所选模型，每个模型至少间隔一分钟；目录缓存一小时。缺失或过期指标显示 `—`。无需身份验证，也不执行生成。
 
 小组件显示账号、余额和所选模型的公开 TPS 统计。不读取账号支出或使用统计。“打开网站”跳转到 `api.wikivibe.dev` 面板，它在浏览器里有自己的会话；在这里登录不会创建那个会话，所以网站可能要求输入密码——这不是应用里的登录被清除。
 

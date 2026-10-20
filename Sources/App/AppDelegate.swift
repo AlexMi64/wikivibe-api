@@ -83,11 +83,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             title: auth.account == nil ? L10n.t("Sign in to WikiVibe…") : L10n.t("WikiVibe account…"),
             action: { [weak self] in self?.openSettings() }
         )]
-        fleet?.setSnapshots([accountSnapshot] + performance.snapshots)
+        fleet?.setSnapshots([accountSnapshot])
         installMenu()
     }
 
-    /// The account cell keeps balance separate from public model performance.
+    /// The account cell owns the only WikiVibe widget; public TPS enriches its hover card.
     private var accountSnapshot: ProviderSnapshot {
         let status: ProviderStatus
         let plan: String?
@@ -122,6 +122,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             fidelity: .official,
             status: status,
             windows: windows,
+            serverPerformanceRows: performance.accountRows,
+            headlineID: "balance",
             plan: plan
         )
     }
