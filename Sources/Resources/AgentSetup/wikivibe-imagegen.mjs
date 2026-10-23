@@ -20,9 +20,12 @@ const tool = {
   name: 'generate_image',
   title: 'Generate an image with WikiVibe',
   description:
-    'Generate or edit a raster image with WikiVibe. Returns the image inline and the absolute path of the saved PNG. ' +
+    'Generate or edit a raster image with WikiVibe. Returns the absolute path of the saved PNG. ' +
     'Use it whenever the user asks for a picture, illustration, logo concept, mockup or diagram artwork. ' +
-    'The image is produced by a WikiVibe image model; the prompt is sent to the WikiVibe gateway.',
+    'The image is produced by a WikiVibe image model; the prompt is sent to the WikiVibe gateway. ' +
+    'IMPORTANT: after this tool returns, call the built-in view_image tool with the exact path from the ' +
+    'Saved: line so the picture is displayed in the chat, then mention it briefly in your reply. ' +
+    'Do not invent a path and do not claim the image exists without that line.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -85,7 +88,9 @@ async function generate(args) {
   const model = typeof args?.model === 'string' && args.model.trim() ? args.model.trim() : DEFAULT_MODEL;
   if (!/^[A-Za-z0-9._-]{1,120}$/.test(model)) throw new Error('invalid model id');
 
-  const payload = { model, input: prompt };
+  // Some upstream routes reject an image model unless the hosted tool is
+  // declared; declaring it is accepted by every route we observed.
+  const payload = { model, input: prompt, tools: [{ type: 'image_generation' }] };
   const size = typeof args?.size === 'string' ? args.size.trim() : '';
   if (/^\d{2,5}x\d{2,5}$/.test(size)) payload.size = size;
   const quality = typeof args?.quality === 'string' ? args.quality.trim() : '';
@@ -125,6 +130,7 @@ async function generate(args) {
 
   const notes = [
     `Saved: ${target}`,
+    `Display it now: call view_image with this exact path, or link it as ![generated image](${target})`,
     `Model: ${body.model ?? model}`,
     `Bytes: ${image.bytes.length}`
   ];

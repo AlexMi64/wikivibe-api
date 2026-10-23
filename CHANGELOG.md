@@ -2,6 +2,13 @@
 
 ## 0.1.0 — unreleased
 
+### Preview 15 — reliable image generation through WikiVibe — 2026-10-23
+
+- The `generate_image` MCP now declares the hosted `image_generation` tool in every request. Some upstream routes answered HTTP 400 `Tool choice 'image_generation' must be specified with 'tools' parameter` without it; with it, all four observed payload shapes returned HTTP 200.
+- The tool result now tells the model to show the saved file with Markdown at its real absolute path, so the picture appears in the chat instead of a fabricated link.
+- Root cause of the "image generated but nothing shown" report: Codex's own `image_generation_call` completed (2.3–4.0 MB of base64) but its save step returned no path, because both `save_root` and the tool environment were empty. The WikiVibe MCP writes the PNG itself, so the rendered path always exists.
+- Verified: MCP `tools/call` with `size` and `quality` returned a 2 150 511-byte PNG, an inline image block and a real `Saved:` path. 13 Node adapter tests pass.
+
 ### Preview 14 — image generation through WikiVibe — 2026-10-23
 
 - Codex now receives a plugin-owned image MCP: `~/.codex/wikivibe-imagegen.mjs` plus `[mcp_servers.wikivibe_imagegen]` (tool timeout 300 s, approval `approve`). Its `generate_image` tool calls WikiVibe `POST /v1/responses` with the selected image model and the API key already stored in the Codex provider block, then returns an inline PNG block and the saved path under `~/.codex/generated_images/`.

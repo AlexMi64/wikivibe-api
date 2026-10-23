@@ -55,6 +55,8 @@ test('Codex receives a plugin-owned image MCP that restores byte-exactly', async
   const source = await fs.readFile(script, 'utf8');
   assert.match(source, /generate_image/);
   assert.match(source, /\/responses/);
+  assert.match(source, /image_generation/);
+  assert.match(source, /view_image/);
   await apply(home, ['codex'], { ...value, apiKey: 'rotated-fixture-key' });
   const rotated = await fs.readFile(path.join(home, '.codex/config.toml'), 'utf8');
   assert.equal((rotated.match(/\[mcp_servers\.wikivibe_imagegen\]/g) ?? []).length, 1);
