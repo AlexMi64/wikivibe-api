@@ -11,7 +11,7 @@ settings:
     SWIFT_VERSION: "5.0"
     SWIFT_STRICT_CONCURRENCY: minimal
     MARKETING_VERSION: "0.1.0"
-    CURRENT_PROJECT_VERSION: "15"
+    CURRENT_PROJECT_VERSION: "16"
     # Local builds remain unsigned until the product distribution identity is
     # supplied by the owner of the WikiVibe application bundle.
     CODE_SIGN_IDENTITY: "-"

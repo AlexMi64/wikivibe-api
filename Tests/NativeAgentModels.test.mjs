@@ -66,6 +66,39 @@ test('Codex receives a plugin-owned image MCP that restores byte-exactly', async
   await assert.rejects(fs.stat(script), { code: 'ENOENT' });
 });
 
+test('Codex gets a plugin-owned image skill and keeps the bundled one disabled', async t => {
+  const home = await homeFor(t);
+  const original = 'model = "keep-me"\n\n[[skills.config]]\nname = "mine"\nenabled = true\n';
+  await put(home, '.codex/config.toml', original);
+  await apply(home, ['codex']);
+  const applied = await fs.readFile(path.join(home, '.codex/config.toml'), 'utf8');
+  assert.equal((applied.match(/\[\[skills\.config\]\]/g) ?? []).length, 2);
+  assert.match(applied, /name = "imagegen"\nenabled = false/);
+  assert.match(applied, /name = "mine"\nenabled = true/);
+  const skill = await fs.readFile(path.join(home, '.codex/skills/wikivibe-images/SKILL.md'), 'utf8');
+  assert.match(skill, /^---\nname: wikivibe-images\n/);
+  assert.match(skill, /mcp__wikivibe_imagegen__generate_image/);
+  // A rotation must not duplicate the gate and must keep the user's own rows.
+  await apply(home, ['codex'], { ...value, apiKey: 'rotated-fixture-key' });
+  const rotated = await fs.readFile(path.join(home, '.codex/config.toml'), 'utf8');
+  assert.equal((rotated.match(/name = "imagegen"/g) ?? []).length, 1);
+  assert.match(rotated, /name = "mine"\nenabled = true/);
+  await restoreAgents(['codex'], { home });
+  assert.equal(await fs.readFile(path.join(home, '.codex/config.toml'), 'utf8'), original);
+  await assert.rejects(fs.stat(path.join(home, '.codex/skills/wikivibe-images/SKILL.md')), { code: 'ENOENT' });
+});
+
+test('a skills.config row the plugin does not own is never rewritten', async t => {
+  const home = await homeFor(t);
+  const original = 'model = "keep-me"\n\n[[skills.config]]\nname = "imagegen"\npath = "/opt/custom"\nenabled = true\n';
+  await put(home, '.codex/config.toml', original);
+  await apply(home, ['codex']);
+  const applied = await fs.readFile(path.join(home, '.codex/config.toml'), 'utf8');
+  // The path-scoped row stays as written; the plugin adds its own name-scoped gate.
+  assert.match(applied, /path = "\/opt\/custom"/);
+  assert.equal((applied.match(/name = "imagegen"/g) ?? []).length, 2);
+});
+
 test('documented vision models expose image input in Codex, OpenCode and OMP', async t => {
   const home = await homeFor(t);
   await apply(home, ['codex', 'opencode', 'omp']);

@@ -2,6 +2,14 @@
 
 ## 0.1.0 — unreleased
 
+### Preview 16 — images actually render in Codex — 2026-10-23
+
+- Fixed the last gap between "the model generated an image" and "the user sees it": the inline image block was 1.27 MB of base64, above Codex's MCP result budget, so Codex replaced the whole result with its own JSON text and the chat had nothing to render. The MCP now writes the full PNG to disk as before and returns a 900-pixel JPEG preview (about 20–45 KB) inline; if no preview can be produced it returns the PNG only when it fits the budget, otherwise text alone.
+- Codex ships a bundled `imagegen` skill that tells the model to use its own hosted image tool. That tool is unavailable with a custom `model_providers.wikivibe`, so requests ended in "готово" with no picture. Apply now writes `[[skills.config]] name = "imagegen" enabled = false` and installs a plugin-owned `~/.codex/skills/wikivibe-images/SKILL.md` that names the WikiVibe MCP as the only image tool. Both live outside `~/.codex/skills/.system`, which Codex deletes and rewrites on every update, so re-applying restores them.
+- The skill gate is surgical: it is refreshed in place instead of duplicated, any other `[[skills.config]]` row the user owns is preserved, a path-scoped row is never mistaken for the plugin's own, and Restore removes only the plugin's entry and returns the TOML byte-exactly.
+- Verified over raw MCP stdio: the same `tools/call` returned a 1 268 732-byte base64 block before the change and a 19 828-byte preview after it. Over the app-server protocol the desktop uses, `item/completed` for the tool call carried `[text, image]` and the turn ended with a one-sentence reply. 15 Node adapter tests pass.
+- Diagnostic context, not a WikiVibe defect: a minimal test MCP with a 96-byte image was delivered intact, which isolates the failure to result size rather than to image blocks being dropped.
+
 ### Preview 15 — reliable image generation through WikiVibe — 2026-10-23
 
 - The `generate_image` MCP now declares the hosted `image_generation` tool in every request. Some upstream routes answered HTTP 400 `Tool choice 'image_generation' must be specified with 'tools' parameter` without it; with it, all four observed payload shapes returned HTTP 200.

@@ -7,14 +7,23 @@
 // that Codex already holds, so no second credential is stored.
 //
 // Registered by WikiVibe as `[mcp_servers.wikivibe_images]`.
-import { readFile, writeFile, mkdir } from 'node:fs/promises';
-import { homedir } from 'node:os';
+import { readFile, writeFile, mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+import { homedir, tmpdir } from 'node:os';
 import path from 'node:path';
 
 const PROTOCOL_VERSIONS = ['2025-06-18', '2025-03-26', '2024-11-05'];
 const DEFAULT_MODEL = 'gpt-image-2.5';
 const MAX_BYTES = 32 * 1024 * 1024;
 const REQUEST_TIMEOUT_MS = 300_000;
+// Codex replaces an oversized MCP result with its own JSON text, so the inline
+// image has to stay well under its budget. The full-resolution PNG is still
+// written to disk; the chat gets a downscaled preview.
+const PREVIEW_EDGE = 900;
+const PREVIEW_FORMAT_OPTIONS = '65';
+const INLINE_BUDGET = 700_000;
+const run = promisify(execFile);
 
 const tool = {
   name: 'generate_image',
@@ -23,9 +32,9 @@ const tool = {
     'Generate or edit a raster image with WikiVibe. Returns the absolute path of the saved PNG. ' +
     'Use it whenever the user asks for a picture, illustration, logo concept, mockup or diagram artwork. ' +
     'The image is produced by a WikiVibe image model; the prompt is sent to the WikiVibe gateway. ' +
-    'IMPORTANT: after this tool returns, call the built-in view_image tool with the exact path from the ' +
-    'Saved: line so the picture is displayed in the chat, then mention it briefly in your reply. ' +
-    'Do not invent a path and do not claim the image exists without that line.',
+    'IMPORTANT: this is the only image tool that works here. The result already displays the picture ' +
+    'in the chat, so reply in one short sentence and do not call view_image or any other image tool. ' +
+    'Do not invent a path and do not claim the image exists without the Saved: line.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -73,6 +82,29 @@ function decodeImage(body) {
     return { bytes, revisedPrompt: item.revised_prompt };
   }
   return null;
+}
+
+/// Builds a small JPEG preview with the macOS image tool, so the inline block
+/// stays inside Codex's MCP result budget. Returns null when no preview can be
+/// produced; the caller then falls back to the PNG or to text only.
+async function preview(bytes) {
+  const directory = await mkdtemp(path.join(tmpdir(), 'wikivibe-preview-'));
+  try {
+    const source = path.join(directory, 'full.png');
+    const target = path.join(directory, 'preview.jpg');
+    await writeFile(source, bytes, { mode: 0o600 });
+    await run('/usr/bin/sips', [
+      '-Z', String(PREVIEW_EDGE),
+      '-s', 'format', 'jpeg',
+      '-s', 'formatOptions', PREVIEW_FORMAT_OPTIONS,
+      source, '--out', target
+    ], { timeout: 30_000 });
+    return { data: (await readFile(target)).toString('base64'), mimeType: 'image/jpeg' };
+  } catch {
+    return null;
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
 }
 
 function safeName(prompt) {
@@ -135,13 +167,11 @@ async function generate(args) {
     `Bytes: ${image.bytes.length}`
   ];
   if (image.revisedPrompt) notes.push(`Revised prompt: ${String(image.revisedPrompt).slice(0, 600)}`);
-  return {
-    target,
-    content: [
-      { type: 'text', text: notes.join('\n') },
-      { type: 'image', data: image.bytes.toString('base64'), mimeType: 'image/png' }
-    ]
-  };
+  const content = [{ type: 'text', text: notes.join('\n') }];
+  const inline = (await preview(image.bytes))
+    ?? { data: image.bytes.toString('base64'), mimeType: 'image/png' };
+  if (inline.data.length <= INLINE_BUDGET) content.push({ type: 'image', ...inline });
+  return { target, content };
 }
 
 // ---- JSON-RPC over stdio -------------------------------------------------

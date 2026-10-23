@@ -76,6 +76,14 @@ function imagePaths(agent) {
 // server, so legacy cleanup can never mistake it for the one it must delete.
 const IMAGE_MCP_ID = 'wikivibe_imagegen';
 const IMAGE_MCP_SCRIPT = '.codex/wikivibe-imagegen.mjs';
+// Codex ships a bundled `imagegen` skill that tells the model to use its own
+// hosted image tool. That tool is not usable with a third-party provider and
+// yields no file the client can render, so the plugin disables the bundled
+// skill and installs this one in its place. Both live outside the system skills
+// directory, which Codex rewrites on every update.
+const IMAGE_SKILL = '.codex/skills/wikivibe-images/SKILL.md';
+const IMAGE_SKILL_SOURCE = 'wikivibe-images.SKILL.md';
+const DISABLED_SKILL = 'imagegen';
 const ADAPTER_DIR = path.dirname(fileURLToPath(import.meta.url));
 function imageMCPRel(agent) { return agent.id === 'codex' ? IMAGE_MCP_SCRIPT : null; }
 function imageMCPBlock(root) {
@@ -119,7 +127,25 @@ function removeImageToml(text, agent, root) {
   while (end < lines.length && !/^\s*\[/.test(lines[end])) end++;
   const current = lines.slice(start + 1, end).map(line => line.trim());
   if (!current.includes(block[1]) || !current.includes(block[2])) fail('Конфликт: бывший MCP wikivibe_images изменён; пользовательский сервер не удалён.');
-  return `${[...lines.slice(0, start), ...lines.slice(end)].join(newline)}${newline}`;
+  const withoutMCP = [...lines.slice(0, start), ...lines.slice(end)];
+  return `${withoutSkillGate(withoutMCP).join(newline)}${newline}`;
+}
+// Removes only the plugin-owned `imagegen` disable entry; any other skills.config
+// row is the user's and stays untouched.
+function withoutSkillGate(lines) {
+  const keep = [];
+  for (let i = 0; i < lines.length; i++) {
+    if (!/^\s*\[\[\s*skills\s*\.\s*config\s*\]\]\s*(?:#.*)?$/.test(lines[i])) { keep.push(lines[i]); continue; }
+    let end = i + 1;
+    while (end < lines.length && !/^\s*\[/.test(lines[end])) end++;
+    const body = lines.slice(i + 1, end).map(line => line.trim()).filter(Boolean);
+    const ours = body.length === 2
+      && body.includes(`name = "${DISABLED_SKILL}"`)
+      && body.includes('enabled = false');
+    if (!ours) keep.push(...lines.slice(i, end));
+    i = end - 1;
+  }
+  return keep;
 }
 function object(value) { return value !== null && typeof value === 'object' && !Array.isArray(value); }
 // Refusal used whenever the plugin may not touch a file the user changed after applying.
@@ -427,11 +453,11 @@ function tomlConfig(text, value, root, merge = false) {
     if (!name || !base || !wire || !token || !/^name\s*=\s*"WikiVibe"$/.test(name.trim()) || !/^wire_api\s*=\s*"responses"$/.test(wire.trim()) || !ENDPOINTS.has(endpoint)) fail('Конфликт: поставщик wikivibe в TOML не принадлежит плагину; файл не изменён.');
     block[block.indexOf(base)] = `base_url = ${JSON.stringify(value.baseUrl)}`;
     block[block.indexOf(token)] = `experimental_bearer_token = ${JSON.stringify(value.apiKey)}`;
-    return withImageMCP(`${[...lines.slice(0, start), ...block, ...lines.slice(end)].join(newline)}${newline}`, root);
+    return withImageSkillGate(withImageMCP(`${[...lines.slice(0, start), ...block, ...lines.slice(end)].join(newline)}${newline}`, root));
   }
   const block = ['[model_providers.wikivibe]', 'name = "WikiVibe"', `base_url = ${JSON.stringify(value.baseUrl)}`, 'wire_api = "responses"', `experimental_bearer_token = ${JSON.stringify(value.apiKey)}`];
   lines.push('', ...block);
-  return withImageMCP(`${lines.join(newline)}${newline}`, root);
+  return withImageSkillGate(withImageMCP(`${lines.join(newline)}${newline}`, root));
 }
 
 /// Adds or refreshes the plugin-owned image MCP block, leaving every other
@@ -452,6 +478,45 @@ function withImageMCP(text, root) {
   lines.push(...imageMCPBlock(root));
   return `${lines.join(newline)}${newline}`;
 }
+
+/// Disables Codex's bundled `imagegen` skill for this profile.
+///
+/// That skill instructs the model to use Codex's own hosted image tool, which is
+/// unavailable with a third-party provider and returns no path the client can
+/// render. Codex rewrites its system skills directory on every update, so the
+/// switch belongs in config.toml, which the plugin owns and re-applies.
+function withImageSkillGate(text) {
+  const newline = text.includes('\r\n') ? '\r\n' : '\n';
+  const lines = text.split(/\r?\n/);
+  if (lines.at(-1) === '') lines.pop();
+  if (lines.some(line => /^\s*skills\s*=/.test(line) || /^\s*\[\s*["']skills["']/.test(line))) {
+    fail('Сложная структура skills в TOML не изменяется автоматически.');
+  }
+  const starts = lines.flatMap((line, i) => /^\s*\[\[\s*skills\s*\.\s*config\s*\]\]\s*(?:#.*)?$/.test(line) ? [i] : []);
+  // A path-scoped row selects a different skill even when the names collide, so
+  // only a name-scoped row can be the plugin's own switch.
+  const owned = starts.filter(start => {
+    let end = start + 1;
+    while (end < lines.length && !/^\s*\[/.test(lines[end])) end++;
+    const body = lines.slice(start + 1, end).map(line => line.trim());
+    return body.some(line => new RegExp(`^name\\s*=\\s*"${DISABLED_SKILL}"\\s*$`).test(line))
+      && !body.some(line => /^path\s*=/.test(line));
+  });
+  if (owned.length > 1) fail('Несколько записей skills.config для одного скилла; файл не изменён.');
+  if (owned.length === 1) {
+    const start = owned[0];
+    let end = start + 1;
+    while (end < lines.length && !/^\s*\[/.test(lines[end])) end++;
+    const enabled = lines.slice(start + 1, end).findIndex(line => /^\s*enabled\s*=/.test(line));
+    if (enabled < 0) lines.splice(end, 0, 'enabled = false');
+    else lines[start + 1 + enabled] = 'enabled = false';
+    return `${lines.join(newline)}${newline}`;
+  }
+  if (lines.length && lines.at(-1) !== '') lines.push('');
+  lines.push('[[skills.config]]', `name = "${DISABLED_SKILL}"`, 'enabled = false');
+  return `${lines.join(newline)}${newline}`;
+}
+
 
 // Exact model presets, checked 2026-10-15; /models alone has no effort metadata.
 // GPT: https://github.com/openai/codex/blob/main/codex-rs/models-manager/models.json
@@ -522,6 +587,11 @@ function render(agent, rel, bytes, value, root, merge = false, providerId = 'wik
     // The plugin-owned image MCP script is copied verbatim from the app bundle.
     if (rel === IMAGE_MCP_SCRIPT) {
       return readFileSync(path.join(ADAPTER_DIR, 'wikivibe-imagegen.mjs'), 'utf8');
+    }
+    // The replacement skill is plugin-owned too: it must survive Codex updates,
+    // which rewrite the system skills directory wholesale.
+    if (rel === IMAGE_SKILL) {
+      return readFileSync(path.join(ADAPTER_DIR, IMAGE_SKILL_SOURCE), 'utf8');
     }
     // The catalog is plugin-owned: later edits are never overwritten.
     if (rel.endsWith('wikivibe-models.json')) {
@@ -649,7 +719,7 @@ async function nativePaths(root, agent) {
     if (a && b) fail('OpenCode: одновременно существуют opencode.json и opencode.jsonc; устраните неоднозначность.');
     return withImagePaths(agent, [b ? jsonc : agent.rel]);
   }
-  if (agent.id === 'codex') return withImagePaths(agent, [agent.rel, '.codex/wikivibe-models.json', '.codex/wikivibe.config.toml', IMAGE_MCP_SCRIPT]);
+  if (agent.id === 'codex') return withImagePaths(agent, [agent.rel, '.codex/wikivibe-models.json', '.codex/wikivibe.config.toml', IMAGE_MCP_SCRIPT, IMAGE_SKILL]);
   if (agent.id !== 'omp') return withImagePaths(agent, [agent.rel]);
   const result = [];
   for (const name of ['models', 'config']) {
@@ -776,7 +846,7 @@ async function mutation(home, operation) {
 function managedPaths(agent) {
   if (agent.id === 'opencode') return withImagePaths(agent, [agent.rel, '.config/opencode/opencode.jsonc']);
   if (agent.id === 'omp') return ['.omp/agent/models.yml', '.omp/agent/models.yaml', '.omp/agent/config.yml', '.omp/agent/config.yaml'];
-  if (agent.id === 'codex') return withImagePaths(agent, [agent.rel, '.codex/wikivibe-models.json', '.codex/wikivibe.config.toml', IMAGE_MCP_SCRIPT]);
+  if (agent.id === 'codex') return withImagePaths(agent, [agent.rel, '.codex/wikivibe-models.json', '.codex/wikivibe.config.toml', IMAGE_MCP_SCRIPT, IMAGE_SKILL]);
   return withImagePaths(agent, [agent.rel]);
 }
 export async function previewRestoreAgents(agentIds, { home = homedir() } = {}) {
@@ -789,7 +859,7 @@ export async function previewAgents(agentIds, value, { home = homedir() } = {}) 
   const agents = selected(agentIds); preferences(value, true);
   const root = await homeRoot(home);
   const { plans: changes, failures } = await plans(root, agents, { ...value, apiKey: value.apiKey ?? 'preview-redacted' });
-  return { changes: changes.map(plan => ({ agentId: plan.agent.id, path: plan.target, secretOnDisk: !plan.cleanup && !plan.filters && !plan.rel.endsWith('wikivibe-models.json') && !plan.rel.endsWith('wikivibe-images.mjs') && !plan.rel.endsWith('wikivibe-imagegen.mjs') })), failures };
+  return { changes: changes.map(plan => ({ agentId: plan.agent.id, path: plan.target, secretOnDisk: !plan.cleanup && !plan.filters && !plan.rel.endsWith('wikivibe-models.json') && !plan.rel.endsWith('wikivibe-images.mjs') && !plan.rel.endsWith('wikivibe-imagegen.mjs') && plan.rel !== IMAGE_SKILL })), failures };
 }
 export async function applyAgents(agentIds, value, { home = homedir() } = {}) {
   const agents = selected(agentIds); preferences(value, true);
