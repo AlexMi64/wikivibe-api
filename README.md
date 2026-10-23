@@ -51,7 +51,7 @@ WikiVibe — приложение для macOS с виджетом у края �
 
 **Только штатные возможности:** WikiVibe не устанавливает image-MCP, прокси, carrier-обходы или специальные инструкции генерации. Установленные агенты и их capability-фильтры не меняются. Само наличие ID в меню не доказывает поддержку выдачи изображений.
 
-**Codex:** image input объявлен для документированных vision-моделей (GPT, Gemini, GLM-5.3-Flash и `gpt-image-*`), поэтому `view_image` и вложения изображений больше не блокируются каталогом. Встроенный `image_gen` для custom provider не регистрируется: Codex 0.153 допускает его только для OpenAI/ChatGPT-провайдера или actor-authorization, а `model_providers.wikivibe` — обычный custom provider. Image-модели остаются в каталоге, но native-генерация через них в Codex не обещается. Прямой `/v1/responses` с `gpt-image-2.5` по-прежнему возвращает PNG; это не доказывает доставку в интерфейсе Codex. Управляемый каталог больше не направляет модель в собственный MCP.
+**Codex:** image input объявлен для документированных vision-моделей (GPT, Gemini, GLM-5.3-Flash и `gpt-image-*`), поэтому `view_image` и вложения изображений больше не блокируются каталогом. Для генерации приложение ставит собственный MCP-сервер `~/.codex/wikivibe-imagegen.mjs` и блок `[mcp_servers.wikivibe_imagegen]`: инструмент `generate_image` вызывает WikiVibe `POST /v1/responses` с image-моделью и уже сохранённым ключом, возвращает картинку в чат и путь в `~/.codex/generated_images/`. Таймаут инструмента 300 секунд. Встроенный `image_gen` Codex для custom provider недоступен — он жёстко использует `gpt-image-2` и требует OpenAI/ChatGPT-авторизацию.
 
 Повторный реальный запуск Codex CLI 0.153.0 с `--model gpt-image-2.5` завершился кодом 0, но указанный `generated_image.png` отсутствовал, каталог результата был пуст. Выдача остаётся неисправленной. Preview 7 выпускает готовые изменения каталога и миграции с этим известным ограничением; новый typed-каталог сам по себе не устраняет дефект.
 
@@ -209,7 +209,7 @@ The widget preserves provider-declared model `type` through adapter serializatio
 
 **Native features only:** WikiVibe installs no image MCP, proxy, carrier workaround or special generation instructions. Installed agents and their capability filters remain unchanged. A selectable ID does not establish image-output support.
 
-**Codex:** image input is declared for documented vision models (GPT, Gemini, GLM-5.3-Flash and `gpt-image-*`), so `view_image` and image attachments are no longer blocked by the catalog. The built-in `image_gen` is not registered for a custom provider: Codex 0.153 exposes it only for an OpenAI/ChatGPT provider or actor authorization, and `model_providers.wikivibe` is an ordinary custom provider. Image models remain in the catalog, but native generation through them is not promised in Codex. A direct `/v1/responses` call with `gpt-image-2.5` still returns a PNG; that does not prove delivery in Codex's UI. The managed catalog no longer directs the model to a custom MCP.
+**Codex:** image input is declared for documented vision models (GPT, Gemini, GLM-5.3-Flash and `gpt-image-*`), so `view_image` and image attachments are no longer blocked by the catalog. For generation the app installs its own MCP server at `~/.codex/wikivibe-imagegen.mjs` plus `[mcp_servers.wikivibe_imagegen]`: its `generate_image` tool calls WikiVibe `POST /v1/responses` with an image model and the already stored key, returns the picture into the chat and the saved path under `~/.codex/generated_images/`. The tool timeout is 300 seconds. Codex's built-in `image_gen` is unavailable for a custom provider — it hardcodes `gpt-image-2` and requires OpenAI/ChatGPT authorization.
 
 A later real Codex CLI 0.153.0 run with `--model gpt-image-2.5` exited 0, but its claimed `generated_image.png` did not exist and the output directory was empty. Native delivery remains unresolved. Preview 7 releases the completed catalog/migration changes with this known limitation; typed catalog preservation alone does not fix the failure.
 
@@ -367,7 +367,7 @@ WikiVibe 是一款 macOS 应用，提供屏幕边缘小组件和菜单栏入口�
 
 **仅使用原生功能：**WikiVibe 不安装图像 MCP、代理服务器、文本载体绕行或专用生成指令。不修改已安装代理及其能力筛选。菜单中能选择模型不代表支持图像输出。
 
-**Codex：**已为有文档的视觉模型（GPT、Gemini、GLM-5.3-Flash 和 `gpt-image-*`）声明图像输入，因此目录不再阻止 `view_image` 和图像附件。内置 `image_gen` 不会为自定义提供商注册：Codex 0.153 仅对 OpenAI/ChatGPT 提供商或 actor authorization 开放它，而 `model_providers.wikivibe` 是普通自定义提供商。图像模型仍保留在目录中，但不承诺在 Codex 中通过这些模型进行原生生成。直接调用 `/v1/responses` 并使用 `gpt-image-2.5` 仍会返回 PNG；这不能证明 Codex 界面能够交付。受管理目录不再指示调用自定义 MCP。
+**Codex：**已为有文档的视觉模型（GPT、Gemini、GLM-5.3-Flash 和 `gpt-image-*`）声明图像输入，因此目录不再阻止 `view_image` 和图像附件。为实现生成，应用会安装自己的 MCP 服务器 `~/.codex/wikivibe-imagegen.mjs` 及 `[mcp_servers.wikivibe_imagegen]`：其 `generate_image` 工具使用图像模型和已保存的密钥调用 WikiVibe `POST /v1/responses`，把图片返回到聊天，并把文件保存在 `~/.codex/generated_images/`。工具超时为 300 秒。Codex 内置 `image_gen` 不适用于自定义提供商——它固定使用 `gpt-image-2` 并要求 OpenAI/ChatGPT 授权。
 
 随后一次真实的 Codex CLI 0.153.0 调用选择 `--model gpt-image-2.5`，退出码为 0，但声称保存的 `generated_image.png` 不存在，输出目录为空。原生交付仍未修复。Preview 7 发布已完成的目录与迁移改进，并明确保留此已知限制；保留目录类型本身不能修复此问题。
 

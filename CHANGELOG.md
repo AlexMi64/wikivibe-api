@@ -2,6 +2,13 @@
 
 ## 0.1.0 — unreleased
 
+### Preview 14 — image generation through WikiVibe — 2026-10-23
+
+- Codex now receives a plugin-owned image MCP: `~/.codex/wikivibe-imagegen.mjs` plus `[mcp_servers.wikivibe_imagegen]` (tool timeout 300 s, approval `approve`). Its `generate_image` tool calls WikiVibe `POST /v1/responses` with the selected image model and the API key already stored in the Codex provider block, then returns an inline PNG block and the saved path under `~/.codex/generated_images/`.
+- Why the native path failed: Codex's built-in `image_gen` is gated to OpenAI/ChatGPT auth and hardcodes `gpt-image-2`, and its desktop save step silently returned no path when both `save_root` and environment were empty, so no file was written while the model still linked a non-existent `/tmp/0.png`.
+- The block is refreshed in place on re-apply (never duplicated), never touches other `[mcp_servers.*]` tables, and is removed together with the script by Restore, which returns the TOML byte-exactly.
+- Verified end to end over MCP stdio: initialize, tools/list, tools/call produced a 1 675 651-byte PNG plus an inline image block. `codex mcp get wikivibe_imagegen` confirms registration. 13 Node adapter tests pass.
+
 ### Preview 13 — image input for vision models — 2026-10-23
 
 - Release tag `v0.1.0-preview.13`, bundle version 13. Universal arm64/x86_64 for macOS 15+, ad-hoc signed without Developer ID or notarization. Previous releases and repository visibility remain unchanged.

@@ -1,6 +1,7 @@
 import { homedir } from 'node:os';
-import { promises as fs, constants } from 'node:fs';
+import { promises as fs, constants, readFileSync } from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { createHash, randomUUID } from 'node:crypto';
 import { parse as parseJSONC, modify, applyEdits } from './vendor/jsonc-parser/lib/esm/main.js';
 import { parseDocument } from './vendor/yaml/browser/index.js';
@@ -70,6 +71,22 @@ function imagePaths(agent) {
   if (agent.id === 'omp') return [];
   const directory = path.dirname(agent.rel);
   return [`${directory}/wikivibe-images.mjs`, `${directory}/wikivibe-images.json`];
+}
+// The image MCP that Codex launches. A distinct name from the retired Preview 6
+// server, so legacy cleanup can never mistake it for the one it must delete.
+const IMAGE_MCP_ID = 'wikivibe_imagegen';
+const IMAGE_MCP_SCRIPT = '.codex/wikivibe-imagegen.mjs';
+const ADAPTER_DIR = path.dirname(fileURLToPath(import.meta.url));
+function imageMCPRel(agent) { return agent.id === 'codex' ? IMAGE_MCP_SCRIPT : null; }
+function imageMCPBlock(root) {
+  return [
+    `[mcp_servers.${IMAGE_MCP_ID}]`,
+    `command = ${JSON.stringify(process.execPath)}`,
+    `args = [${JSON.stringify(path.join(root, IMAGE_MCP_SCRIPT))}]`,
+    'startup_timeout_sec = 20',
+    'tool_timeout_sec = 300',
+    'default_tools_approval_mode = "approve"'
+  ];
 }
 function withImagePaths(agent, paths) {
   return [...imagePaths(agent), ...paths, ...(agent.id === 'claude' ? ['.claude.json'] : [])];
@@ -410,10 +427,29 @@ function tomlConfig(text, value, root, merge = false) {
     if (!name || !base || !wire || !token || !/^name\s*=\s*"WikiVibe"$/.test(name.trim()) || !/^wire_api\s*=\s*"responses"$/.test(wire.trim()) || !ENDPOINTS.has(endpoint)) fail('Конфликт: поставщик wikivibe в TOML не принадлежит плагину; файл не изменён.');
     block[block.indexOf(base)] = `base_url = ${JSON.stringify(value.baseUrl)}`;
     block[block.indexOf(token)] = `experimental_bearer_token = ${JSON.stringify(value.apiKey)}`;
-    return `${[...lines.slice(0, start), ...block, ...lines.slice(end)].join(newline)}${newline}`;
+    return withImageMCP(`${[...lines.slice(0, start), ...block, ...lines.slice(end)].join(newline)}${newline}`, root);
   }
   const block = ['[model_providers.wikivibe]', 'name = "WikiVibe"', `base_url = ${JSON.stringify(value.baseUrl)}`, 'wire_api = "responses"', `experimental_bearer_token = ${JSON.stringify(value.apiKey)}`];
   lines.push('', ...block);
+  return withImageMCP(`${lines.join(newline)}${newline}`, root);
+}
+
+/// Adds or refreshes the plugin-owned image MCP block, leaving every other
+/// `[mcp_servers.*]` table untouched.
+function withImageMCP(text, root) {
+  const newline = text.includes('\r\n') ? '\r\n' : '\n';
+  const lines = text.split(/\r?\n/);
+  if (lines.at(-1) === '') lines.pop();
+  const header = new RegExp(`^\\s*\\[\\s*mcp_servers\\s*\\.\\s*(?:${IMAGE_MCP_ID}(?=\\s*[.\\]])|["']${IMAGE_MCP_ID}["'])\\s*\\]\\s*(?:#.*)?$`);
+  const start = lines.findIndex(line => header.test(line));
+  if (start >= 0) {
+    let end = start + 1;
+    while (end < lines.length && !/^\s*\[/.test(lines[end])) end++;
+    lines.splice(start, end - start, ...imageMCPBlock(root));
+    return `${lines.join(newline)}${newline}`;
+  }
+  if (lines.length && lines.at(-1) !== '') lines.push('');
+  lines.push(...imageMCPBlock(root));
   return `${lines.join(newline)}${newline}`;
 }
 
@@ -483,6 +519,10 @@ function render(agent, rel, bytes, value, root, merge = false, providerId = 'wik
   }
   if (agent.id === 'opencode') return openCodeConfig(text, value, agent, root, removeImages);
   if (agent.id === 'codex') {
+    // The plugin-owned image MCP script is copied verbatim from the app bundle.
+    if (rel === IMAGE_MCP_SCRIPT) {
+      return readFileSync(path.join(ADAPTER_DIR, 'wikivibe-imagegen.mjs'), 'utf8');
+    }
     // The catalog is plugin-owned: later edits are never overwritten.
     if (rel.endsWith('wikivibe-models.json')) {
       if (bytes !== null) fail(merge ? conflict(agent.label) : 'Codex: файл wikivibe-models.json уже существует и не принадлежит плагину.');
@@ -609,7 +649,7 @@ async function nativePaths(root, agent) {
     if (a && b) fail('OpenCode: одновременно существуют opencode.json и opencode.jsonc; устраните неоднозначность.');
     return withImagePaths(agent, [b ? jsonc : agent.rel]);
   }
-  if (agent.id === 'codex') return withImagePaths(agent, [agent.rel, '.codex/wikivibe-models.json', '.codex/wikivibe.config.toml']);
+  if (agent.id === 'codex') return withImagePaths(agent, [agent.rel, '.codex/wikivibe-models.json', '.codex/wikivibe.config.toml', IMAGE_MCP_SCRIPT]);
   if (agent.id !== 'omp') return withImagePaths(agent, [agent.rel]);
   const result = [];
   for (const name of ['models', 'config']) {
@@ -736,7 +776,7 @@ async function mutation(home, operation) {
 function managedPaths(agent) {
   if (agent.id === 'opencode') return withImagePaths(agent, [agent.rel, '.config/opencode/opencode.jsonc']);
   if (agent.id === 'omp') return ['.omp/agent/models.yml', '.omp/agent/models.yaml', '.omp/agent/config.yml', '.omp/agent/config.yaml'];
-  if (agent.id === 'codex') return withImagePaths(agent, [agent.rel, '.codex/wikivibe-models.json', '.codex/wikivibe.config.toml']);
+  if (agent.id === 'codex') return withImagePaths(agent, [agent.rel, '.codex/wikivibe-models.json', '.codex/wikivibe.config.toml', IMAGE_MCP_SCRIPT]);
   return withImagePaths(agent, [agent.rel]);
 }
 export async function previewRestoreAgents(agentIds, { home = homedir() } = {}) {
@@ -749,7 +789,7 @@ export async function previewAgents(agentIds, value, { home = homedir() } = {}) 
   const agents = selected(agentIds); preferences(value, true);
   const root = await homeRoot(home);
   const { plans: changes, failures } = await plans(root, agents, { ...value, apiKey: value.apiKey ?? 'preview-redacted' });
-  return { changes: changes.map(plan => ({ agentId: plan.agent.id, path: plan.target, secretOnDisk: !plan.cleanup && !plan.filters && !plan.rel.endsWith('wikivibe-models.json') && !plan.rel.endsWith('wikivibe-images.mjs') })), failures };
+  return { changes: changes.map(plan => ({ agentId: plan.agent.id, path: plan.target, secretOnDisk: !plan.cleanup && !plan.filters && !plan.rel.endsWith('wikivibe-models.json') && !plan.rel.endsWith('wikivibe-images.mjs') && !plan.rel.endsWith('wikivibe-imagegen.mjs') })), failures };
 }
 export async function applyAgents(agentIds, value, { home = homedir() } = {}) {
   const agents = selected(agentIds); preferences(value, true);

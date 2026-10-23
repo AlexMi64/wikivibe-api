@@ -41,6 +41,29 @@ async function legacyResources(home, agent) {
   return { command: process.execPath, args: ['wikivibe-images.mjs', 'wikivibe-images.json'].map(name => path.join(home, directory, name)) };
 }
 
+test('Codex receives a plugin-owned image MCP that restores byte-exactly', async t => {
+  const home = await homeFor(t);
+  const original = 'model = "keep-me"\n\n[mcp_servers.user_tool]\ncommand = "user-binary"\n';
+  await put(home, '.codex/config.toml', original);
+  await apply(home, ['codex']);
+  const applied = await fs.readFile(path.join(home, '.codex/config.toml'), 'utf8');
+  assert.equal((applied.match(/\[mcp_servers\.wikivibe_imagegen\]/g) ?? []).length, 1);
+  assert.match(applied, /tool_timeout_sec = 300/);
+  assert.match(applied, /wikivibe-imagegen\.mjs/);
+  assert.ok(applied.includes('[mcp_servers.user_tool]'));
+  const script = path.join(home, '.codex/wikivibe-imagegen.mjs');
+  const source = await fs.readFile(script, 'utf8');
+  assert.match(source, /generate_image/);
+  assert.match(source, /\/responses/);
+  await apply(home, ['codex'], { ...value, apiKey: 'rotated-fixture-key' });
+  const rotated = await fs.readFile(path.join(home, '.codex/config.toml'), 'utf8');
+  assert.equal((rotated.match(/\[mcp_servers\.wikivibe_imagegen\]/g) ?? []).length, 1);
+  assert.ok(rotated.includes('[mcp_servers.user_tool]'));
+  await restoreAgents(['codex'], { home });
+  assert.equal(await fs.readFile(path.join(home, '.codex/config.toml'), 'utf8'), original);
+  await assert.rejects(fs.stat(script), { code: 'ENOENT' });
+});
+
 test('documented vision models expose image input in Codex, OpenCode and OMP', async t => {
   const home = await homeFor(t);
   await apply(home, ['codex', 'opencode', 'omp']);
