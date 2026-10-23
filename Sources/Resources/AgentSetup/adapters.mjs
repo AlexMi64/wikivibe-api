@@ -52,6 +52,15 @@ function isImageModel(model) {
   const id = modelId(model);
   return (typeof model === 'object' && model?.type?.toLowerCase() === 'image') || (typeof id === 'string' && id.startsWith('gpt-image-'));
 }
+// Documented image-input support, checked 2026-10-23. Unknown IDs stay text-only
+// rather than inheriting a capability the gateway catalog does not declare.
+const VISION_MODELS = new Set([
+  'gpt-5.5', 'gpt-5.6-luna', 'gpt-5.6-sol', 'gpt-5.6-terra',
+  'gpt-6-astra', 'gpt-6-luna', 'gpt-6-sol', 'gpt-6.1-sol',
+  'gemini-3.8-flash', 'gemini-3.1-flash-lite-preview', 'gemini-4-argon',
+  'glm-5.3-flash', 'gpt-image-2', 'gpt-image-2.5'
+]);
+function hasImageInput(model) { return isImageModel(model) || VISION_MODELS.has(modelId(model)); }
 function imageConfiguration(value) {
   return (!Array.isArray(value.protocols) || value.protocols.includes('openai_responses'))
     && value.models.some(model => isImageModel(model));
@@ -152,6 +161,12 @@ function openCodeConfig(text, value, agent, root, removeImages) {
         if (next.reasoning === false) delete next.reasoning;
         if (JSON.stringify(next.modalities) === JSON.stringify({ input: ['text', 'image'], output: ['image'] })) delete next.modalities;
       }
+      if (isImageModel(model)) {
+        next.tool_call = false;
+        next.modalities = { input: ['text', 'image'], output: ['image'] };
+      } else if (hasImageInput(model)) {
+        next.modalities = { input: ['text', 'image'], output: ['text'] };
+      }
       return [id, next];
     }));
     set(['provider', id], {
@@ -195,6 +210,7 @@ function ompModels(text, value) {
     api: isImageModel(model) || responseAPI(value, model) ? 'openai-responses' : 'openai-completions',
     kind: isImageModel(model) ? 'image' : 'chat',
     ...(model.contextWindow !== undefined ? { contextWindow: model.contextWindow } : {}),
+    ...(hasImageInput(model) ? { input: ['text', 'image'] } : {}),
     ...(isImageModel(model) ? { supportsTools: false } : {})
   }));
   let output = text;
@@ -454,7 +470,7 @@ function codexCatalog(models) {
       support_verbosity: false, default_verbosity: null, apply_patch_tool_type: null,
       supports_reasoning_summary_parameter: false, truncation_policy: { mode: 'bytes', limit: 10000 },
       supports_reasoning_summaries: false, supports_parallel_tool_calls: false,
-      experimental_supported_tools: [], input_modalities: ['text']
+      experimental_supported_tools: [], input_modalities: hasImageInput(model) ? ['text', 'image'] : ['text']
     };
   }) };
 }

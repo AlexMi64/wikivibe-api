@@ -2,6 +2,17 @@
 
 ## 0.1.0 — unreleased
 
+### Preview 13 — image input for vision models — 2026-10-23
+
+- Release tag `v0.1.0-preview.13`, bundle version 13. Universal arm64/x86_64 for macOS 15+, ad-hoc signed without Developer ID or notarization. Previous releases and repository visibility remain unchanged.
+- Codex catalog now declares image input for documented vision models. It previously wrote `input_modalities: ['text']` for every model, which made Codex 0.153 reject `view_image` and image attachments with "you do not support image inputs". Unknown IDs remain text-only.
+- OpenCode again declares `modalities` for image models (`tool_call: false`, output image) and declares image input for vision text models. The app adapter had removed all modalities during the Preview 6 migration.
+- oh-my-pi and Pi declare `input: ['text', 'image']` for the same documented vision models; image models keep `kind: image` and no tools.
+- Codex native `image_gen` remains unavailable for a custom `model_providers.wikivibe`: Codex 0.153 registers it only for OpenAI/ChatGPT auth or actor authorization. Image models remain catalogued, but native generation is not promised.
+- Verification: 12 Node adapter tests in the app and 37 in the plugin passed; no credentials or inference were used.
+- Codex 0.153 itself read the updated catalog: `codex debug models` reported `['text','image']` for `gpt-6.1-sol` and `gpt-image-2.5`, `['text']` for `deepseek-v4.1-flash`. `codex debug prompt-input -i` accepted a local PNG as `input_image` instead of refusing it. The installed `~/.codex/wikivibe-models.json` was updated in place with a timestamped backup.
+- Release packaging: bundle version 13, x86_64 and arm64 executable, deep/strict all-architecture signature verification and DMG integrity passed. SHA-256: `85035efa35c9ee3ad8db84aeacacee1bdf7f4090f8e92f60aa79d1e3b83be91d`. Ad-hoc signed, without notarization.
+
 ### Preview 12 — TPS in the balance hover card — 2026-10-20
 
 - Corrected Preview 11's placement: selecting models no longer creates extra widget cells. Only the balance cell remains; selected public model metrics appear in its hover card, in a bounded scrolling section. Balance remains the headline, including when no balance has been loaded. Account sign-in status remains independent of public performance data.

@@ -41,6 +41,29 @@ async function legacyResources(home, agent) {
   return { command: process.execPath, args: ['wikivibe-images.mjs', 'wikivibe-images.json'].map(name => path.join(home, directory, name)) };
 }
 
+test('documented vision models expose image input in Codex, OpenCode and OMP', async t => {
+  const home = await homeFor(t);
+  await apply(home, ['codex', 'opencode', 'omp']);
+  const codex = await readJSON(home, '.codex/wikivibe-models.json');
+  const bySlug = new Map(codex.models.map(row => [row.slug, row]));
+  assert.deepEqual(bySlug.get('gpt-6.1-sol').input_modalities, ['text', 'image']);
+  assert.deepEqual(bySlug.get('gpt-image-2').input_modalities, ['text', 'image']);
+  assert.deepEqual(bySlug.get('deepseek-v4.1-flash').input_modalities, ['text']);
+
+  const oc = JSON.parse(await fs.readFile(path.join(home, '.config/opencode/opencode.json'), 'utf8'));
+  assert.deepEqual(oc.provider.wikivibe.models['gpt-6.1-sol'].modalities, { input: ['text', 'image'], output: ['text'] });
+  assert.deepEqual(oc.provider.wikivibe.models['gpt-image-2'].modalities, { input: ['text', 'image'], output: ['image'] });
+  assert.equal(oc.provider.wikivibe.models['gpt-image-2'].tool_call, false);
+  assert.equal(oc.provider.wikivibe.models['deepseek-v4.1-flash'].modalities, undefined);
+
+  const omp = parseDocument(await fs.readFile(path.join(home, '.omp/agent/models.yml'), 'utf8')).toJS();
+  const ompModels = new Map(omp.providers.wikivibe.models.map(row => [row.id, row]));
+  assert.deepEqual(ompModels.get('gpt-6.1-sol').input, ['text', 'image']);
+  assert.deepEqual(ompModels.get('gpt-image-2').input, ['text', 'image']);
+  assert.equal(ompModels.get('gpt-image-2').kind, 'image');
+  assert.equal(ompModels.get('deepseek-v4.1-flash').input, undefined);
+});
+
 test('native catalogs retain every ID, current image selection and user roles; restore returns exact originals', async t => {
   const home = await homeFor(t);
   const originals = {
