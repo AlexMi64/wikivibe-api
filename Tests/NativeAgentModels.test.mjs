@@ -122,6 +122,33 @@ test('documented vision models expose image input in Codex, OpenCode and OMP', a
   assert.equal(ompModels.get('deepseek-v4.1-flash').input, undefined);
 });
 
+test('an ID oh-my-pi does not know still gets documented reasoning levels and image input', async t => {
+  const home = await homeFor(t);
+  const kimi = { id: 'kimi-k3.1-pro' };
+  await apply(home, ['codex', 'omp'], { ...value, models: [...value.models, kimi] });
+
+  // oh-my-pi leaves an unrecognised model at reasoning:false, which disables the
+  // Shift+Tab level cycle; the writer must declare the documented shape itself.
+  const omp = parseDocument(await fs.readFile(path.join(home, '.omp/agent/models.yml'), 'utf8')).toJS();
+  const row = omp.providers.wikivibe.models.find(model => model.id === 'kimi-k3.1-pro');
+  assert.equal(row.reasoning, true);
+  assert.deepEqual(row.thinking, { mode: 'effort', efforts: ['low', 'high', 'max'], defaultLevel: 'max' });
+  assert.deepEqual(row.input, ['text', 'image']);
+  assert.equal(omp.providers.wikivibe.models.find(model => model.id === 'glm-5.3').thinking.mode, 'effort');
+  // oh-my-pi rejects 'none' and 'ultra'; one unknown effort disables every custom provider.
+  const deepseek = omp.providers.wikivibe.models.find(model => model.id === 'deepseek-v4.1-flash');
+  assert.deepEqual(deepseek.thinking.efforts, ['low', 'high', 'max']);
+  assert.equal(omp.providers.wikivibe.models.find(model => model.id === 'gpt-6.1-sol').thinking.efforts.includes('ultra'), false);
+
+  // The same preset must reach the Codex catalog, which otherwise shows no levels.
+  const codex = await readJSON(home, '.codex/wikivibe-models.json');
+  const slug = new Map(codex.models.map(model => [model.slug, model]));
+  assert.equal(slug.get('kimi-k3.1-pro').default_reasoning_level, 'max');
+  assert.deepEqual(slug.get('kimi-k3.1-pro').supported_reasoning_levels.map(level => level.effort), ['low', 'high', 'max']);
+  assert.deepEqual(slug.get('kimi-k3.1-pro').input_modalities, ['text', 'image']);
+  assert.equal(slug.get('deepseek-v4.1-flash').default_reasoning_level, 'high');
+});
+
 test('native catalogs retain every ID, current image selection and user roles; restore returns exact originals', async t => {
   const home = await homeFor(t);
   const originals = {

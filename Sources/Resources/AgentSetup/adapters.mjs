@@ -59,7 +59,7 @@ const VISION_MODELS = new Set([
   'gpt-5.5', 'gpt-5.6-luna', 'gpt-5.6-sol', 'gpt-5.6-terra',
   'gpt-6-astra', 'gpt-6-luna', 'gpt-6-sol', 'gpt-6.1-sol',
   'gemini-3.8-flash', 'gemini-3.1-flash-lite-preview', 'gemini-4-argon',
-  'glm-5.3-flash', 'gpt-image-2', 'gpt-image-2.5'
+  'glm-5.3-flash', 'gpt-image-2', 'gpt-image-2.5', 'kimi-k3.1-pro'
 ]);
 function hasImageInput(model) { return isImageModel(model) || VISION_MODELS.has(modelId(model)); }
 function imageConfiguration(value) {
@@ -254,6 +254,9 @@ function ompModels(text, value) {
     kind: isImageModel(model) ? 'image' : 'chat',
     ...(model.contextWindow !== undefined ? { contextWindow: model.contextWindow } : {}),
     ...(hasImageInput(model) ? { input: ['text', 'image'] } : {}),
+    // oh-my-pi resolves reasoning from its own catalog by model ID; an ID it does
+    // not know stays reasoning:false and Shift+Tab cannot change the level.
+    ...(ompThinking(model.id) ? { reasoning: true, thinking: ompThinking(model.id) } : {}),
     ...(isImageModel(model) ? { supportsTools: false } : {})
   }));
   let output = text;
@@ -523,6 +526,7 @@ function withImageSkillGate(text) {
 // DeepSeek: https://api-docs.deepseek.com/guides/thinking_mode
 // Gemini: https://ai.google.dev/gemini-api/docs/generate-content/thinking#thinking-levels
 // GLM: https://docs.z.ai/guides/capabilities/thinking
+// Kimi K3: https://platform.moonshot.ai/docs/guide/use-kimi-k3 (efforts low/high/max, max by default)
 // Provider presets do not prove that WikiVibe forwards reasoning.effort.
 const CODEX_REASONING = new Map([
   ['gpt-5.5', ['medium', ['low', 'medium', 'high', 'xhigh']]],
@@ -540,7 +544,19 @@ const CODEX_REASONING = new Map([
   ['gemini-3.1-flash-lite-preview', ['minimal', ['minimal', 'low', 'medium', 'high']]],
   ['glm-5.3', ['max', ['low', 'high', 'max']]],
   ['glm-5.3-flash', ['max', ['low', 'high', 'max']]],
+  ['kimi-k3.1-pro', ['max', ['low', 'high', 'max']]],
 ]);
+// oh-my-pi validates this shape strictly: an effort outside its own vocabulary
+// disables every custom provider in the file, so both the list and the default
+// level are narrowed to what it accepts.
+const OMP_EFFORTS = new Set(['minimal', 'low', 'medium', 'high', 'xhigh', 'max']);
+function ompThinking(id) {
+  const preset = CODEX_REASONING.get(id);
+  if (!preset) return null;
+  const efforts = preset[1].filter(effort => OMP_EFFORTS.has(effort));
+  if (!efforts.length) return null;
+  return { mode: 'effort', efforts, ...(efforts.includes(preset[0]) ? { defaultLevel: preset[0] } : {}) };
+}
 const CODEX_EFFORTS = [
   { effort: 'none', description: 'Disable reasoning' },
   { effort: 'minimal', description: 'Minimal reasoning; not guaranteed to be off' },

@@ -2,6 +2,15 @@
 
 ## 0.1.0 — unreleased
 
+### Preview 17 — Kimi reasoning levels in oh-my-pi — 2026-10-24
+
+- `kimi-k3.1-pro` arrived without reasoning metadata, so oh-my-pi showed `reasoning: false` and Shift+Tab could not change the level. The gateway `/models` payload carries no capability fields at all (`id`, `object`, `created`, `created_at`, `display_name`, `owned_by`, `type`), and oh-my-pi otherwise fills reasoning from its own catalog by model ID; an ID it does not know stays at the default.
+- The oh-my-pi writer now declares `reasoning: true` and `thinking: {mode: effort, efforts, defaultLevel}` from a documented preset table. Kimi K3 documents `low`/`high`/`max` with `max` by default. IDs outside the table are left untouched, so models oh-my-pi already resolves keep its own metadata and unknown IDs stay undeclared instead of guessed.
+- Efforts are narrowed to oh-my-pi's own vocabulary (`minimal`, `low`, `medium`, `high`, `xhigh`, `max`). This is not cosmetic: writing `none` or `ultra` made oh-my-pi reject the entire file with "models.yml validation failed — custom providers disabled".
+- `kimi-k3.1-pro` is also declared with image input. Verified against the gateway: a 128×128 PNG sent as `image_url` returned HTTP 200 and the model described the image; the same request with an unreadable image returned HTTP 400 from the route, so images are forwarded rather than dropped.
+- Reasoning effort is accepted by the gateway: `POST /v1/chat/completions` with `reasoning_effort: "low"` for `kimi-k3.1-pro` returned HTTP 200 with `reasoning_content`. Whether a given upstream honours the value is not proven by that acceptance alone.
+- Verification: `omp models --json` changed from `reasoning:false, thinking:null` to `reasoning:true, thinking:["low","high","max"]` for `wikivibe/kimi-k3.1-pro`; 25 of 29 WikiVibe models now declare reasoning. The file no longer trips validation. 16 Node adapter tests pass, including the effort-vocabulary boundary.
+
 ### Preview 16 — images actually render in Codex — 2026-10-23
 
 - Fixed the last gap between "the model generated an image" and "the user sees it": the inline image block was 1.27 MB of base64, above Codex's MCP result budget, so Codex replaced the whole result with its own JSON text and the chat had nothing to render. The MCP now writes the full PNG to disk as before and returns a 900-pixel JPEG preview (about 20–45 KB) inline; if no preview can be produced it returns the PNG only when it fits the budget, otherwise text alone.
