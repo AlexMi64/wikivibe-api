@@ -284,9 +284,6 @@ struct WikiVibeAccountView: View {
                 Button(L10n.t("Refresh")) { Task { await performance.refresh() } }
                     .disabled(performance.isRefreshing)
             }
-            Text(L10n.t("Public traffic over 24 hours. TPS includes first-token waiting; reasoning is counted as reported by the provider. Only selected models are polled every 5 minutes; the catalog is cached for an hour."))
-                .font(.caption).foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
             if performance.catalogFailed {
                 Text(L10n.t("Could not load server performance.")).foregroundStyle(.secondary)
             } else if performance.models.isEmpty {

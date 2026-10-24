@@ -1149,24 +1149,15 @@ struct TooltipCard: View {
                     ProviderTooltip(activityNote: localActivityNote, snapshot: snapshot, now: now, resetTimeFormat: resetTimeFormat,
                                     showUsagePace: showUsagePace)
                     if !snapshot.serverPerformanceRows.isEmpty {
-                        VStack(alignment: .leading, spacing: NotchLayout.blockSpacing) {
-                            VStack(alignment: .leading, spacing: 0) {
-                                Text(L10n.t("Public traffic · 24 h · not your request"))
-                                Text(L10n.t("TPS including first-token wait"))
-                            }
-                            .font(Typography.cardBody)
-                            .foregroundStyle(Palette.textSecondary)
-                            .frame(height: 2 * NotchLayout.cardBodyLineHeight, alignment: .leading)
-                            ScrollView(.vertical) {
-                                VStack(alignment: .leading, spacing: NotchLayout.blockSpacing) {
-                                    ForEach(snapshot.serverPerformanceRows) { row in
-                                        SplitRow(leading: row.label, trailing: row.detail ?? row.usedText ?? "—")
-                                    }
+                        ScrollView(.vertical) {
+                            VStack(alignment: .leading, spacing: NotchLayout.blockSpacing) {
+                                ForEach(snapshot.serverPerformanceRows) { row in
+                                    SplitRow(leading: row.label, trailing: row.detail ?? row.usedText ?? "—")
                                 }
                             }
-                            .frame(height: NotchLayout.serverPerformanceHeight(rowCount: snapshot.serverPerformanceRows.count)
-                                - 2 * NotchLayout.blockSpacing - 2 * NotchLayout.cardBodyLineHeight)
                         }
+                        .frame(height: NotchLayout.serverPerformanceHeight(rowCount: snapshot.serverPerformanceRows.count)
+                            - NotchLayout.blockSpacing)
                         .padding(.top, NotchLayout.blockSpacing)
                     }
                     if let resetCredits = snapshot.availableResetCredits(at: now) {

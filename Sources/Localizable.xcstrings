@@ -59839,7 +59839,6 @@
       }
     },
     "Model speed in hover card": { "extractionState": "manual", "localizations": { "ru": { "stringUnit": { "state": "translated", "value": "Скорость моделей во всплывающей карточке" } }, "zh-Hans": { "stringUnit": { "state": "translated", "value": "悬浮卡片中的模型速度" } } } },
-    "TPS including first-token wait": { "extractionState": "manual", "localizations": { "ru": { "stringUnit": { "state": "translated", "value": "TPS с ожиданием" } }, "zh-Hans": { "stringUnit": { "state": "translated", "value": "含首令牌等待的 TPS" } } } },
     "Metric samples": { "extractionState": "manual", "localizations": { "ru": { "stringUnit": { "state": "translated", "value": "Измерений" } }, "zh-Hans": { "stringUnit": { "state": "translated", "value": "测量样本" } } } },
     "First token": { "extractionState": "manual", "localizations": { "ru": { "stringUnit": { "state": "translated", "value": "Первый токен" } }, "zh-Hans": { "stringUnit": { "state": "translated", "value": "首个令牌" } } } },
     "As of": { "extractionState": "manual", "localizations": { "ru": { "stringUnit": { "state": "translated", "value": "Данные на" } }, "zh-Hans": { "stringUnit": { "state": "translated", "value": "数据截至" } } } },
@@ -59847,8 +59846,6 @@
     "Update failed; showing the last reading.": { "extractionState": "manual", "localizations": { "ru": { "stringUnit": { "state": "translated", "value": "Сбой обновления; прошлые данные." } }, "zh-Hans": { "stringUnit": { "state": "translated", "value": "更新失败；显示上次数据。" } } } },
     "Reading is stale; check its date.": { "extractionState": "manual", "localizations": { "ru": { "stringUnit": { "state": "translated", "value": "Данные устарели; проверьте дату." } }, "zh-Hans": { "stringUnit": { "state": "translated", "value": "数据已过期；请检查日期。" } } } },
     "Loading server performance…": { "extractionState": "manual", "localizations": { "ru": { "stringUnit": { "state": "translated", "value": "Загрузка скорости сервера…" } }, "zh-Hans": { "stringUnit": { "state": "translated", "value": "正在加载服务器性能…" } } } },
-    "Public traffic · 24 h · not your request": { "extractionState": "manual", "localizations": { "ru": { "stringUnit": { "state": "translated", "value": "Сервер · 24 ч · не ваш запрос" } }, "zh-Hans": { "stringUnit": { "state": "translated", "value": "公开流量 · 24 小时 · 非当前请求" } } } },
-    "Public traffic over 24 hours. TPS includes first-token waiting; reasoning is counted as reported by the provider. Only selected models are polled every 5 minutes; the catalog is cached for an hour.": { "extractionState": "manual", "localizations": { "ru": { "stringUnit": { "state": "translated", "value": "Публичный трафик за 24 часа. TPS включает ожидание первого токена; reasoning учитывается по данным провайдера. Только выбранные модели обновляются раз в 5 минут; каталог кэшируется на час." } }, "zh-Hans": { "stringUnit": { "state": "translated", "value": "过去 24 小时的公开流量。TPS 包含首令牌等待时间；推理令牌以提供商报告为准。仅每 5 分钟查询所选模型；目录缓存一小时。" } } } },
     "Could not build the model-list URL": {
       "extractionState": "manual",
       "localizations": {

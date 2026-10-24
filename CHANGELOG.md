@@ -2,6 +2,14 @@
 
 ## 0.1.0 — unreleased
 
+### Preview 19 — remove the speed explanation caption — 2026-10-24
+
+- Removed the remaining public-traffic/TPS explanation from the account settings. The model checklist, refresh action, measured values and hover-card rows are unchanged; only the misleading caption is gone.
+
+### Preview 18 — hover card shows only the measured rows — 2026-10-24
+
+- Removed the two captions above the model TPS rows (`Public traffic · 24 h · not your request` and `TPS including first-token wait`) and reclaimed their layout space. Model rows, TPS values, polling, staleness handling and the settings explanation are unchanged.
+
 ### Preview 17 — Kimi reasoning levels in oh-my-pi — 2026-10-24
 
 - `kimi-k3.1-pro` arrived without reasoning metadata, so oh-my-pi showed `reasoning: false` and Shift+Tab could not change the level. The gateway `/models` payload carries no capability fields at all (`id`, `object`, `created`, `created_at`, `display_name`, `owned_by`, `type`), and oh-my-pi otherwise fills reasoning from its own catalog by model ID; an ID it does not know stays at the default.

@@ -385,7 +385,7 @@ enum NotchLayout {
 
     static func serverPerformanceHeight(rowCount: Int) -> CGFloat {
         guard rowCount > 0 else { return 0 }
-        return blockSpacing + 2 * cardBodyLineHeight + blockSpacing
+        return blockSpacing
             + min(240, CGFloat(rowCount) * (cardBodyLineHeight + blockSpacing) - blockSpacing)
     }
 
