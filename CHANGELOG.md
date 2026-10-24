@@ -2,6 +2,22 @@
 
 ## 0.1.0 — unreleased
 
+### Preview 22 — service-style dropdowns and widget top-up form — 2026-10-25
+
+- Replaced the remaining native-looking settings dropdowns with service-style dark menus and chevrons; all settings actions now use the same primary/secondary control language, including the layout editor popover.
+- The widget `Top up` action keeps its existing behavior but now uses the tooltip card's own dark fill, inset and rounded geometry instead of a mismatched rectangular button surface.
+
+### Preview 21 — WikiVibe service-style settings controls — 2026-10-25
+
+- Refined only the account/settings window toward the actual `api.wikivibe.dev` visual language: near-black navy surfaces, electric-blue primary actions, bordered control surfaces, custom agent/model checkboxes and styled pickers/buttons.
+- Loaded model context settings now become a stable sibling section in the adaptive dashboard and use one shared controller, so loading the catalog does not append a tall block below the API controls or lose selected values during reflow.
+- The notch/widget surface and logic are untouched: no `Notch*`, `TooltipCard`, or widget data files changed.
+
+### Preview 20 — Aether-inspired account settings — 2026-10-25
+
+- Restyled only the WikiVibe account/settings window toward the selected Aether Nexus direction: compact dark dashboard surfaces, restrained accent strips, clearer primary actions, a subtle page glow and independent card columns without changing settings behavior.
+- The notch/widget surface and logic are untouched: no `Notch*`, `TooltipCard`, or widget data files changed.
+
 ### Preview 19 — remove the speed explanation caption — 2026-10-24
 
 - Removed the remaining public-traffic/TPS explanation from the account settings. The model checklist, refresh action, measured values and hover-card rows are unchanged; only the misleading caption is gone.

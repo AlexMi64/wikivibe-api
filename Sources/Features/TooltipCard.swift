@@ -1190,7 +1190,15 @@ struct TooltipCard: View {
                         }
                         .buttonStyle(.plain)
                         .foregroundStyle(Palette.textPrimary)
-                        .background(.white.opacity(0.12), in: RoundedRectangle(cornerRadius: 7))
+                        .background {
+                            RoundedRectangle(cornerRadius: NotchLayout.cardCorner / 3, style: .circular)
+                                .fill(Palette.card)
+                                .overlay {
+                                    RoundedRectangle(cornerRadius: NotchLayout.cardCorner / 3, style: .circular)
+                                        .fill(Color.white.opacity(0.12))
+                                }
+                        }
+                        .clipShape(RoundedRectangle(cornerRadius: NotchLayout.cardCorner / 3, style: .circular))
                         .padding(.top, NotchLayout.blockSpacing)
                         .help(L10n.t("Open the WikiVibe top-up page in your browser. The website may ask you to sign in."))
                         .accessibilityIdentifier("widget.topUp")

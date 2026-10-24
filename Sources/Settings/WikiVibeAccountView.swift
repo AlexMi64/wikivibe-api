@@ -1,21 +1,80 @@
 import AppKit
 import SwiftUI
 
-/// Account, money and widget controls share a responsive card grid. Layout
-/// preferences are presentation only and never change the authentication flow.
+private enum AccountSection: Hashable, Identifiable {
+    case card(AccountWindowLayout.Card)
+    case models
+
+    var id: Self { self }
+    var title: String {
+        switch self {
+        case .card(let card): return card.title
+        case .models: return L10n.t("Model context windows")
+        }
+    }
+    var symbol: String {
+        switch self {
+        case .card(let card): return card.symbol
+        case .models: return "square.stack.3d.up"
+        }
+    }
+    var accessibilityID: String {
+        switch self {
+        case .card(let card): return "account.card.\(card.rawValue)"
+        case .models: return "account.card.models"
+        }
+    }
+}
+
+private enum AccountDashboardStyle {
+    static let cardRadius: CGFloat = 14
+    static let darkPage = Color(red: 0.018, green: 0.025, blue: 0.040)
+    static let darkCard = Color(red: 0.035, green: 0.052, blue: 0.078)
+    static let cardFill = Color.white.opacity(0.055)
+    static let cardEdge = Color.white.opacity(0.10)
+    static let cardHighlight = Color.white.opacity(0.06)
+    static let pageGlow = Color(red: 0.02, green: 0.32, blue: 0.95).opacity(0.16)
+
+    static func pageBackground(for scheme: ColorScheme) -> Color {
+        scheme == .dark ? darkPage : Color(nsColor: .windowBackgroundColor)
+    }
+
+    static func cardFill(for scheme: ColorScheme) -> Color {
+        scheme == .dark ? darkCard : cardFill
+    }
+
+    static func accent(for section: AccountSection) -> Color {
+        switch section {
+        case .card(.account): return .green
+        case .card(.balance): return .blue
+        case .card(.appearance): return .orange
+        case .card(.apiKeys): return .purple
+        case .models: return .cyan
+        }
+    }
+}
+
 struct WikiVibeAccountView: View {
     @ObservedObject var auth: WikiVibeAuthCoordinator
     @ObservedObject var preferences: Preferences
     @ObservedObject var performance: WikiVibePerformanceStore
+    @Environment(\.colorScheme) private var colorScheme
+    @StateObject private var keys = WikiVibeKeysController()
     @State private var browserOpenFailed = false
     @State private var isCustomizing = false
 
     private var layout: AccountWindowLayout { preferences.accountWindowLayout }
+    private var sections: [AccountSection] {
+        layout.visibleCards.flatMap { card in
+            card == .apiKeys && !keys.models.isEmpty ? [.card(card), .models] : [.card(card)]
+        }
+    }
 
     var body: some View {
         GeometryReader { geometry in
             let width = max(0, geometry.size.width - layout.density.padding * 2)
-            let columns = layout.columnCount(availableWidth: width)
+            let sections = self.sections
+            let columns = layout.columnCount(availableWidth: width, sectionCount: sections.count)
             ScrollView {
                 VStack(alignment: .leading, spacing: layout.density.spacing) {
                     header(compact: width < 500)
@@ -24,14 +83,25 @@ struct WikiVibeAccountView: View {
                             .foregroundStyle(.secondary)
                             .frame(maxWidth: .infinity, minHeight: 160)
                     } else {
-                        cardGrid(width: width, columns: columns)
+                        AccountCardLayout(columns: columns, spacing: layout.density.spacing) {
+                            ForEach(sections) { section in cardView(section) }
+                        }
+                        .frame(width: width)
                     }
                 }
                 .id(preferences.language)
                 .padding(layout.density.padding)
                 .frame(maxWidth: .infinity, alignment: .topLeading)
             }
-            .background(Color(nsColor: .windowBackgroundColor))
+            .background {
+                ZStack {
+                    AccountDashboardStyle.pageBackground(for: colorScheme)
+                    RadialGradient(colors: [AccountDashboardStyle.pageGlow, .clear],
+                                   center: .topLeading, startRadius: 0, endRadius: 520)
+                        .opacity(0.9)
+                }
+                .ignoresSafeArea()
+            }
         }
         .frame(minWidth: 420, minHeight: 360)
         .task {
@@ -40,14 +110,29 @@ struct WikiVibeAccountView: View {
             await auth.loadWallet()
             auth.startWalletPolling()
         }
-        .onDisappear { auth.setWalletVisible(false) }
+        .task(id: layout.isVisible(.apiKeys) ? auth.account?.id : nil) {
+            keys.clear()
+            if layout.isVisible(.apiKeys), auth.account != nil { await keys.load(auth: auth) }
+        }
+        .onDisappear {
+            auth.setWalletVisible(false)
+            keys.clear()
+        }
     }
 
     private func header(compact: Bool) -> some View {
-        HStack(spacing: 12) {
-            Image("glyph-wikivibe")
-                .resizable().scaledToFit().frame(width: 36, height: 36)
-            VStack(alignment: .leading, spacing: 3) {
+        HStack(spacing: 14) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(
+                        LinearGradient(colors: [.blue.opacity(0.9), .purple.opacity(0.85)],
+                                       startPoint: .topLeading, endPoint: .bottomTrailing)
+                    )
+                Image("glyph-wikivibe")
+                    .resizable().scaledToFit().padding(7)
+            }
+            .frame(width: 42, height: 42)
+            VStack(alignment: .leading, spacing: 2) {
                 Text("WikiVibe").font(.title2.bold())
                 Text(L10n.t("Account")).font(.callout).foregroundStyle(.secondary)
             }
@@ -61,6 +146,9 @@ struct WikiVibeAccountView: View {
                     Label(L10n.t("Customize window"), systemImage: "slider.horizontal.3")
                 }
             }
+            .buttonStyle(.borderedProminent)
+            .tint(.blue)
+            .controlSize(.regular)
             .accessibilityLabel(L10n.t("Customize window"))
             .help(L10n.t("Customize window"))
             .accessibilityIdentifier("layout.customize")
@@ -72,51 +160,55 @@ struct WikiVibeAccountView: View {
             } label: {
                 Image(systemName: "arrow.counterclockwise")
             }
+            .buttonStyle(.bordered)
+            .controlSize(.regular)
             .accessibilityLabel(L10n.t("Reset window layout"))
             .help(L10n.t("Reset window layout"))
             .accessibilityIdentifier("layout.reset")
         }
+        .padding(.bottom, 2)
     }
 
-    private func cardGrid(width: CGFloat, columns: Int) -> some View {
-        let cards = layout.visibleCards
-        let rows = stride(from: 0, to: cards.count, by: columns).map {
-            Array(cards[$0..<min($0 + columns, cards.count)])
-        }
-        let cellWidth = max(0, (width - CGFloat(columns - 1) * layout.density.spacing) / CGFloat(columns))
-        return Grid(alignment: .topLeading, horizontalSpacing: layout.density.spacing,
-                    verticalSpacing: layout.density.spacing) {
-            ForEach(rows.indices, id: \.self) { row in
-                GridRow(alignment: .top) {
-                    ForEach(rows[row]) { card in
-                        cardView(card)
-                            .frame(width: rows[row].count == 1 ? width : cellWidth, alignment: .topLeading)
-                            .gridCellColumns(rows[row].count == 1 ? columns : 1)
-                    }
-                }
-            }
-        }
-    }
-
-    private func cardView(_ card: AccountWindowLayout.Card) -> some View {
-        VStack(alignment: .leading, spacing: layout.density.spacing) {
-            Label(card.title, systemImage: card.symbol)
+    private func cardView(_ section: AccountSection) -> some View {
+        let accent = AccountDashboardStyle.accent(for: section)
+        return VStack(alignment: .leading, spacing: layout.density.spacing) {
+            Label(section.title, systemImage: section.symbol)
                 .font(.headline)
+                .foregroundStyle(.primary)
+                .symbolRenderingMode(.hierarchical)
+                .tint(accent)
             Divider()
-            switch card {
-            case .account: accountSection
-            case .balance: walletSection
-            case .appearance: appearanceControls
-            case .apiKeys: WikiVibeAPIKeysView(auth: auth).id(auth.account?.id)
+                .overlay(accent.opacity(0.20))
+            switch section {
+            case .card(.account): accountSection
+            case .card(.balance): walletSection
+            case .card(.appearance): appearanceControls
+            case .card(.apiKeys): WikiVibeAPIKeysView(auth: auth, model: keys)
+            case .models: WikiVibeModelContextsView(model: keys)
             }
         }
         .padding(layout.density.padding)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 14))
-        .overlay {
-            RoundedRectangle(cornerRadius: 14).strokeBorder(.quaternary, lineWidth: 1)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .background {
+            RoundedRectangle(cornerRadius: AccountDashboardStyle.cardRadius, style: .continuous)
+                .fill(AccountDashboardStyle.cardFill(for: colorScheme))
+                .overlay {
+                    RoundedRectangle(cornerRadius: AccountDashboardStyle.cardRadius, style: .continuous)
+                        .fill(LinearGradient(colors: [AccountDashboardStyle.cardHighlight, .clear],
+                                             startPoint: .topLeading, endPoint: .bottomTrailing))
+                }
         }
-        .accessibilityIdentifier("account.card.\(card.rawValue)")
+        .overlay(alignment: .topLeading) {
+            Capsule(style: .continuous)
+                .fill(accent.gradient)
+                .frame(width: 46, height: 3)
+                .padding(.leading, layout.density.padding)
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: AccountDashboardStyle.cardRadius, style: .continuous)
+                .strokeBorder(AccountDashboardStyle.cardEdge, lineWidth: 1)
+        }
+        .accessibilityIdentifier(section.accessibilityID)
     }
 
     private var accountSection: some View {
@@ -194,6 +286,8 @@ struct WikiVibeAccountView: View {
                 }
                 HStack(spacing: 8) {
                     Button(L10n.t("Refresh")) { Task { await auth.loadWallet() } }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
                         .disabled(auth.isLoadingWallet)
                     if auth.isLoadingWallet {
                         ProgressView().controlSize(.small)
@@ -254,27 +348,24 @@ struct WikiVibeAccountView: View {
     private var appearanceControls: some View {
         Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 12) {
             formRow(L10n.t("Language")) {
-                Picker(L10n.t("Language"), selection: $preferences.language) {
-                    ForEach([AppLanguage.system, .english, .russian, .simplifiedChinese]) { language in
-                        Text(language.title).tag(language)
-                    }
-                }
-                .accessibilityIdentifier("account.language")
+                AetherSelectionMenu(L10n.t("Language"), selection: $preferences.language,
+                                    options: [.system, .english, .russian, .simplifiedChinese],
+                                    accent: .blue, identifier: "account.language", title: \.title)
             }
             formRow(L10n.t("Screen edge")) {
-                Picker(L10n.t("Screen edge"), selection: $preferences.notchEdge) {
-                    ForEach(NotchEdge.allCases) { edge in Text(edge.title).tag(edge) }
-                }
+                AetherSelectionMenu(L10n.t("Screen edge"), selection: $preferences.notchEdge,
+                                    options: NotchEdge.allCases, accent: .blue,
+                                    title: \.title)
             }
             formRow(L10n.t("Size")) {
-                Picker(L10n.t("Size"), selection: $preferences.notchSize) {
-                    ForEach(NotchSize.allCases) { size in Text(size.title).tag(size) }
-                }
+                AetherSelectionMenu(L10n.t("Size"), selection: $preferences.notchSize,
+                                    options: NotchSize.allCases, accent: .blue,
+                                    title: \.title)
             }
             formRow(L10n.t("Visibility")) {
-                Picker(L10n.t("Visibility"), selection: $preferences.notchVisibility) {
-                    ForEach(NotchVisibility.allCases) { visibility in Text(visibility.title).tag(visibility) }
-                }
+                AetherSelectionMenu(L10n.t("Visibility"), selection: $preferences.notchVisibility,
+                                    options: NotchVisibility.allCases, accent: .blue,
+                                    title: \.title)
             }
         }
         VStack(alignment: .leading, spacing: 8) {
@@ -282,6 +373,8 @@ struct WikiVibeAccountView: View {
                 Text(L10n.t("Model speed in hover card")).font(.subheadline.bold())
                 Spacer()
                 Button(L10n.t("Refresh")) { Task { await performance.refresh() } }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
                     .disabled(performance.isRefreshing)
             }
             if performance.catalogFailed {
@@ -298,7 +391,7 @@ struct WikiVibeAccountView: View {
                             Task { await performance.refresh() }
                         }
                     ))
-                    .toggleStyle(.checkbox)
+                    .toggleStyle(AetherCheckboxStyle())
                     .accessibilityIdentifier("performance.model." + model.id)
                     Spacer(minLength: 8)
                     TimelineView(.periodic(from: .now, by: 60)) { _ in
@@ -323,6 +416,7 @@ struct WikiVibeAccountView: View {
                 .frame(width: 100, alignment: .leading)
                 .gridColumnAlignment(.leading)
             control().labelsHidden()
+                .aetherControlSurface()
                 .frame(maxWidth: .infinity)
                 .gridColumnAlignment(.trailing)
         }
@@ -334,19 +428,20 @@ struct WikiVibeAccountView: View {
                 Text(L10n.t("Customize window")).font(.headline)
                 Spacer()
                 Button(L10n.t("Done")) { isCustomizing = false }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.blue)
+                    .controlSize(.small)
             }
             Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 12) {
                 formRow(L10n.t("Card layout")) {
-                    Picker(L10n.t("Card layout"), selection: $preferences.accountWindowLayout.arrangement) {
-                        ForEach(AccountWindowLayout.Arrangement.allCases) { Text($0.title).tag($0) }
-                    }
-                    .accessibilityIdentifier("layout.arrangement")
+                    AetherSelectionMenu(L10n.t("Card layout"), selection: $preferences.accountWindowLayout.arrangement,
+                                        options: AccountWindowLayout.Arrangement.allCases, accent: .blue,
+                                        identifier: "layout.arrangement", title: \.title)
                 }
                 formRow(L10n.t("Card spacing")) {
-                    Picker(L10n.t("Card spacing"), selection: $preferences.accountWindowLayout.density) {
-                        ForEach(AccountWindowLayout.Density.allCases) { Text($0.title).tag($0) }
-                    }
-                    .accessibilityIdentifier("layout.density")
+                    AetherSelectionMenu(L10n.t("Card spacing"), selection: $preferences.accountWindowLayout.density,
+                                        options: AccountWindowLayout.Density.allCases, accent: .blue,
+                                        identifier: "layout.density", title: \.title)
                 }
             }
             Text(L10n.t("Widen the window for more columns. Narrow windows stack cards automatically."))
@@ -360,7 +455,7 @@ struct WikiVibeAccountView: View {
                         get: { layout.isVisible(card) },
                         set: { preferences.accountWindowLayout.setVisible($0, for: card) }
                     ))
-                    .toggleStyle(.checkbox)
+                    .toggleStyle(AetherCheckboxStyle())
                     .accessibilityIdentifier("layout.visible.\(card.rawValue)")
                     Spacer(minLength: 8)
                     Button {
