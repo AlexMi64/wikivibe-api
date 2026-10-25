@@ -2,6 +2,13 @@
 
 ## 0.1.0 — unreleased
 
+### Preview 23 — finished settings surface and widget footer geometry — 2026-10-25
+
+- Finished the settings window as one service-style surface: every action uses the shared settings button language, the layout editor uses the same dark panel, and dropdowns open as keyboard-accessible dark lists with selected-state marks instead of native gray menus.
+- Kept the adaptive model-context section on one shared controller while cards reflow by measured height; resizing the window does not discard loaded models or selected context budgets.
+- Moved the widget `Top up` action down to the card inset and made its lower corners concentric with the containing tooltip card. Callback, identifier, typography and all other widget/notch behavior remain unchanged.
+- Release evidence: targeted settings, keys, performance and notch-layout tests passed; the disposable UI proof rendered the Russian dark settings window with fixture account, catalog and context data without writing agent files.
+
 ### Preview 22 — service-style dropdowns and widget top-up form — 2026-10-25
 
 - Replaced the remaining native-looking settings dropdowns with service-style dark menus and chevrons; all settings actions now use the same primary/secondary control language, including the layout editor popover.

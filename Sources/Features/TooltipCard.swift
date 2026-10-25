@@ -1181,25 +1181,28 @@ struct TooltipCard: View {
                         CostSection(model: model, rows: costRows)
                     }
                     if let onTopUp {
+                        let buttonShape = RoundedRectangle(
+                            cornerRadius: NotchLayout.topUpButtonCorner, style: .circular
+                        )
                         Button(action: onTopUp) {
                             Label(L10n.t("Top up"), systemImage: "plus.circle.fill")
                                 .font(Typography.cardBody)
                                 .frame(maxWidth: .infinity)
                                 .frame(height: NotchLayout.topUpButtonHeight)
-                                .contentShape(Rectangle())
+                                .contentShape(buttonShape)
                         }
                         .buttonStyle(.plain)
                         .foregroundStyle(Palette.textPrimary)
                         .background {
-                            RoundedRectangle(cornerRadius: NotchLayout.cardCorner / 3, style: .circular)
+                            buttonShape
                                 .fill(Palette.card)
                                 .overlay {
-                                    RoundedRectangle(cornerRadius: NotchLayout.cardCorner / 3, style: .circular)
-                                        .fill(Color.white.opacity(0.12))
+                                    buttonShape.fill(Color.white.opacity(0.12))
                                 }
                         }
-                        .clipShape(RoundedRectangle(cornerRadius: NotchLayout.cardCorner / 3, style: .circular))
-                        .padding(.top, NotchLayout.blockSpacing)
+                        .clipShape(buttonShape)
+                        .contentShape(buttonShape)
+                        .padding(.top, NotchLayout.topUpButtonTopGap)
                         .help(L10n.t("Open the WikiVibe top-up page in your browser. The website may ask you to sign in."))
                         .accessibilityIdentifier("widget.topUp")
                     }

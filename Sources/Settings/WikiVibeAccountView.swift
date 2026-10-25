@@ -59,9 +59,18 @@ struct WikiVibeAccountView: View {
     @ObservedObject var preferences: Preferences
     @ObservedObject var performance: WikiVibePerformanceStore
     @Environment(\.colorScheme) private var colorScheme
-    @StateObject private var keys = WikiVibeKeysController()
+    @StateObject private var keys: WikiVibeKeysController
     @State private var browserOpenFailed = false
     @State private var isCustomizing = false
+
+    @MainActor
+    init(auth: WikiVibeAuthCoordinator, preferences: Preferences, performance: WikiVibePerformanceStore,
+         keys: WikiVibeKeysController? = nil) {
+        self.auth = auth
+        self.preferences = preferences
+        self.performance = performance
+        _keys = StateObject(wrappedValue: keys ?? WikiVibeKeysController())
+    }
 
     private var layout: AccountWindowLayout { preferences.accountWindowLayout }
     private var sections: [AccountSection] {
@@ -104,6 +113,8 @@ struct WikiVibeAccountView: View {
             }
         }
         .frame(minWidth: 420, minHeight: 360)
+        .buttonStyle(SettingsButtonStyle(dashboard: true))
+        .tint(AccountControlPalette.accent)
         .task {
             await auth.restore()
             auth.setWalletVisible(true)
@@ -146,7 +157,7 @@ struct WikiVibeAccountView: View {
                     Label(L10n.t("Customize window"), systemImage: "slider.horizontal.3")
                 }
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(SettingsButtonStyle(kind: .prominent, dashboard: true))
             .tint(.blue)
             .controlSize(.regular)
             .accessibilityLabel(L10n.t("Customize window"))
@@ -160,7 +171,7 @@ struct WikiVibeAccountView: View {
             } label: {
                 Image(systemName: "arrow.counterclockwise")
             }
-            .buttonStyle(.bordered)
+            .buttonStyle(SettingsButtonStyle(dashboard: true))
             .controlSize(.regular)
             .accessibilityLabel(L10n.t("Reset window layout"))
             .help(L10n.t("Reset window layout"))
@@ -208,6 +219,7 @@ struct WikiVibeAccountView: View {
             RoundedRectangle(cornerRadius: AccountDashboardStyle.cardRadius, style: .continuous)
                 .strokeBorder(AccountDashboardStyle.cardEdge, lineWidth: 1)
         }
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier(section.accessibilityID)
     }
 
@@ -286,7 +298,7 @@ struct WikiVibeAccountView: View {
                 }
                 HStack(spacing: 8) {
                     Button(L10n.t("Refresh")) { Task { await auth.loadWallet() } }
-                        .buttonStyle(.bordered)
+                        .buttonStyle(SettingsButtonStyle(dashboard: true))
                         .controlSize(.small)
                         .disabled(auth.isLoadingWallet)
                     if auth.isLoadingWallet {
@@ -322,7 +334,7 @@ struct WikiVibeAccountView: View {
             VStack(alignment: .leading, spacing: 8) { sessionButton; websiteButton }
         }
         .controlSize(.regular)
-        .buttonStyle(.bordered)
+        .buttonStyle(SettingsButtonStyle(dashboard: true))
     }
 
     @ViewBuilder
@@ -373,7 +385,7 @@ struct WikiVibeAccountView: View {
                 Text(L10n.t("Model speed in hover card")).font(.subheadline.bold())
                 Spacer()
                 Button(L10n.t("Refresh")) { Task { await performance.refresh() } }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(SettingsButtonStyle(dashboard: true))
                     .controlSize(.small)
                     .disabled(performance.isRefreshing)
             }
@@ -416,7 +428,6 @@ struct WikiVibeAccountView: View {
                 .frame(width: 100, alignment: .leading)
                 .gridColumnAlignment(.leading)
             control().labelsHidden()
-                .aetherControlSurface()
                 .frame(maxWidth: .infinity)
                 .gridColumnAlignment(.trailing)
         }
@@ -428,7 +439,7 @@ struct WikiVibeAccountView: View {
                 Text(L10n.t("Customize window")).font(.headline)
                 Spacer()
                 Button(L10n.t("Done")) { isCustomizing = false }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(SettingsButtonStyle(kind: .prominent, dashboard: true))
                     .tint(.blue)
                     .controlSize(.small)
             }
@@ -475,6 +486,10 @@ struct WikiVibeAccountView: View {
         }
         .padding(20)
         .frame(width: 400)
+        .foregroundStyle(.primary)
+        .background(AccountControlPalette.panel(colorScheme))
+        .presentationBackground(AccountControlPalette.panel(colorScheme))
+        .buttonStyle(SettingsButtonStyle(compact: true, dashboard: true))
         .id(preferences.language)
     }
 }

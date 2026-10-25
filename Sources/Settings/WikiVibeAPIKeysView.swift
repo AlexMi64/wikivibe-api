@@ -3,6 +3,7 @@ import SwiftUI
 struct WikiVibeAPIKeysView: View {
     @ObservedObject var auth: WikiVibeAuthCoordinator
     @ObservedObject var model: WikiVibeKeysController
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -33,7 +34,7 @@ struct WikiVibeAPIKeysView: View {
                     Image(systemName: "arrow.clockwise")
                 }
                 .help(L10n.t("Reload API keys"))
-                .buttonStyle(.bordered)
+                .buttonStyle(SettingsButtonStyle(dashboard: true))
                 .controlSize(.small)
                 .accessibilityLabel(L10n.t("Reload API keys"))
                 .accessibilityIdentifier("keys.reload")
@@ -47,14 +48,12 @@ struct WikiVibeAPIKeysView: View {
                 Text(L10n.t("No API keys were found. Create a key in the WikiVibe panel, then reload.")).foregroundStyle(.secondary)
                 Link(L10n.t("Open WikiVibe panel"), destination: WikiVibeAuthContract.api.appendingPathComponent("keys"))
             }
-            AetherSelectionMenu(L10n.t("API key"), selection: Binding<Int>(
-                get: { model.selectedKeyID ?? -1 },
-                set: { model.selectedKeyID = $0 < 0 ? nil : $0 }
-            ), options: [-1] + model.keys.map(\.id), accent: .purple,
-               identifier: "keys.selection", title: { id in
-                    guard id >= 0, let key = model.keys.first(where: { $0.id == id }) else { return L10n.t("Choose an API key") }
+            AetherSelectionMenu(L10n.t("API key"), selection: $model.selectedKeyID,
+                                options: [nil] + model.keys.map { Optional($0.id) }, accent: .purple,
+                                identifier: "keys.selection", title: { id in
+                    guard let id, let key = model.keys.first(where: { $0.id == id }) else { return L10n.t("Choose an API key") }
                     return key.displayName.isEmpty ? L10n.t("Key #\(key.id)") : key.displayName
-               }, enabled: { id in id < 0 || model.keys.first(where: { $0.id == id })?.isUsable == true })
+               }, enabled: { id in id == nil || model.keys.first(where: { $0.id == id })?.isUsable == true })
             if let key = model.selectedKey {
                 Text(key.isUsable ? L10n.t("Active key · value hidden") : L10n.t("This key is inactive, expired, or unavailable."))
                     .font(.caption).foregroundStyle(.secondary)
@@ -98,7 +97,7 @@ struct WikiVibeAPIKeysView: View {
             Button(L10n.t("Load models")) {
                 Task { await model.loadModels(auth: auth) }
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(SettingsButtonStyle(kind: .prominent, dashboard: true))
             .tint(.blue)
             .controlSize(.regular)
             .accessibilityIdentifier("keys.loadModels")
@@ -106,14 +105,14 @@ struct WikiVibeAPIKeysView: View {
             Button(L10n.t("Preview configuration changes…")) {
                 Task { await model.prepare(auth: auth) }
             }
-            .buttonStyle(.bordered)
+            .buttonStyle(SettingsButtonStyle(dashboard: true))
             .controlSize(.regular)
             .accessibilityIdentifier("keys.preview")
             .disabled(!model.canPreview || model.models.isEmpty || WikiVibeAgentService.nodeURL == nil)
             Button(L10n.t("Preview restoring agent backups…")) {
                 Task { await model.prepare(auth: auth, restore: true) }
             }
-            .buttonStyle(.bordered)
+            .buttonStyle(SettingsButtonStyle(dashboard: true))
             .controlSize(.small)
             .font(.caption)
             .accessibilityIdentifier("keys.restore")
@@ -175,6 +174,7 @@ struct WikiVibeAPIKeysView: View {
                 Button(model.isRestoring ? L10n.t("Confirm restore") : L10n.t("Confirm and write files")) {
                     Task { await model.apply(auth: auth) }
                 }
+                .buttonStyle(SettingsButtonStyle(kind: .prominent, dashboard: true))
                 .accessibilityIdentifier("keys.confirm")
                 .keyboardShortcut(.defaultAction)
                 .disabled(report.changes?.isEmpty != false || model.isBusy)
@@ -182,6 +182,9 @@ struct WikiVibeAPIKeysView: View {
         }
         .padding(24)
         .frame(minWidth: 420, idealWidth: 600, maxWidth: 700, minHeight: 400, idealHeight: 620)
+        .background(AccountControlPalette.panel(colorScheme))
+        .presentationBackground(AccountControlPalette.panel(colorScheme))
+        .buttonStyle(SettingsButtonStyle(dashboard: true))
     }
 
     private func fileRows(_ report: WikiVibeAgentReport) -> some View {

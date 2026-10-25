@@ -196,6 +196,11 @@ enum NotchLayout {
     static let blockSpacing  = Design.px(20)
     static let moneyBarHeight = Design.px(12)
     static let topUpButtonHeight: CGFloat = 28
+    /// Give the footer a full inset's separation from the rows above it.
+    static let topUpButtonTopGap = cardPadding
+    /// The button's side and bottom insets are both `cardPadding`, so its
+    /// lower arcs share the card's centres of curvature: inner R = outer R − inset.
+    static let topUpButtonCorner = max(0, cardCorner - cardPadding)
     static let moneyBarToStats = Design.px(14)
     static let moneyStatGap = Design.px(4)
     static let usageDetailIdentityGap = Design.px(4)
@@ -408,7 +413,7 @@ enum NotchLayout {
         let header = max(glyphSize, cardTitleLineHeight)
             + (hasPlan ? cardBodyLineHeight : 0)
         var height = 2 * cardPadding + header
-        if hasTopUpAction { height += blockSpacing + topUpButtonHeight }
+        if hasTopUpAction { height += topUpButtonTopGap + topUpButtonHeight }
         height += serverPerformanceHeight(rowCount: serverPerformanceRowCount)
 
         // The blocked line sits under the header, above everything else — it

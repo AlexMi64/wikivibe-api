@@ -16,9 +16,10 @@ struct SettingsButtonStyle: ButtonStyle {
     var kind: Kind = .standard
     /// Smaller type and padding, for a button beside small text.
     var compact = false
+    var dashboard = false
 
     func makeBody(configuration: Configuration) -> some View {
-        SettingsButtonBody(configuration: configuration, kind: kind, compact: compact)
+        SettingsButtonBody(configuration: configuration, kind: kind, compact: compact, dashboard: dashboard)
     }
 }
 
@@ -26,7 +27,9 @@ private struct SettingsButtonBody: View {
     let configuration: ButtonStyleConfiguration
     let kind: SettingsButtonStyle.Kind
     let compact: Bool
+    let dashboard: Bool
 
+    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.isEnabled) private var isEnabled
     @State private var isHovered = false
 
@@ -36,8 +39,13 @@ private struct SettingsButtonBody: View {
         let pressed = configuration.isPressed
         switch kind {
         case .standard:
+            if dashboard {
+                return (colorScheme == .dark ? Color.white : Color.black)
+                    .opacity(pressed ? 0.15 : isHovered ? 0.10 : 0.055)
+            }
             return .white.opacity(pressed ? 0.20 : isHovered ? 0.14 : 0.08)
         case .prominent:
+            if dashboard { return AccountControlPalette.accent.opacity(pressed ? 0.72 : isHovered ? 0.90 : 1) }
             return .white.opacity(pressed ? 0.72 : isHovered ? 0.86 : 0.96)
         }
     }
@@ -45,9 +53,13 @@ private struct SettingsButtonBody: View {
     private var foreground: Color {
         if configuration.role == .destructive { return Self.destructiveRed }
         switch kind {
-        case .standard:  return .white.opacity(isHovered ? 1 : 0.9)
-        case .prominent: return .black
+        case .standard:  return dashboard ? .primary : .white.opacity(isHovered ? 1 : 0.9)
+        case .prominent: return dashboard ? .white : .black
         }
+    }
+
+    private var shape: RoundedRectangle {
+        RoundedRectangle(cornerRadius: dashboard ? 8 : 100, style: .continuous)
     }
 
     var body: some View {
@@ -55,14 +67,14 @@ private struct SettingsButtonBody: View {
             .font(.system(size: compact ? 11 : 12, weight: compact ? .semibold : .medium))
             .foregroundStyle(foreground)
             .padding(.horizontal, compact ? 9 : 12)
-            .padding(.vertical, compact ? 3 : 5)
-            .background(Capsule().fill(fill))
+            .padding(.vertical, dashboard ? (compact ? 5 : 8) : (compact ? 3 : 5))
+            .background(shape.fill(fill))
             .overlay {
                 if kind == .standard {
-                    Capsule().strokeBorder(.white.opacity(isHovered ? 0.16 : 0.09), lineWidth: 1)
+                    shape.strokeBorder(dashboard ? Color.primary.opacity(isHovered ? 0.24 : 0.12) : .white.opacity(isHovered ? 0.16 : 0.09), lineWidth: 1)
                 }
             }
-            .contentShape(Capsule())
+            .contentShape(shape)
             .scaleEffect(configuration.isPressed ? 0.97 : 1)
             .opacity(isEnabled ? 1 : 0.4)
             .onHover { hovering in
