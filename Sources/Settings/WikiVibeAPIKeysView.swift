@@ -132,7 +132,7 @@ struct WikiVibeAPIKeysView: View {
                         DisclosureGroup(L10n.t("View available models")) {
                             VStack(alignment: .leading, spacing: 4) {
                                 ForEach(model.models, id: \.self) { item in
-                                    Text("\(item.id) · \(WikiVibeKeysController.contextLabel(model.contextWindows[item.id]))").font(.caption.monospaced())
+                                    Text("\(item.displayName) · \(WikiVibeKeysController.contextLabel(model.contextWindows[item.id]))").font(.caption.monospaced())
                                 }
                             }.frame(maxWidth: .infinity, alignment: .leading)
                         }
@@ -225,7 +225,7 @@ struct WikiVibeModelContextsView: View {
                 .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             ForEach(model.models, id: \.id) { item in
                 VStack(alignment: .leading, spacing: 6) {
-                    Text(item.id).font(.caption.monospaced())
+                    Text(item.displayName).font(.caption.monospaced())
                         .textSelection(.enabled)
                     AetherSelectionMenu(L10n.t("Context window"), selection: Binding<Int>(
                         get: { model.contextWindows[item.id] ?? -1 },

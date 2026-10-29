@@ -182,6 +182,11 @@ function parseOpenCode(text) {
   if (errors.length || !object(config)) fail('OpenCode: некорректный JSON/JSONC; файл не изменён.');
   return config;
 }
+function displayModelID(id) {
+  const slash = id.indexOf('/');
+  return slash > 0 && slash < id.length - 1 ? id.slice(slash + 1) : id;
+}
+
 function openCodeConfig(text, value, agent, root, removeImages) {
   const config = parseOpenCode(text);
   const providers = child(config, 'provider');
@@ -196,7 +201,8 @@ function openCodeConfig(text, value, agent, root, removeImages) {
     const models = Object.fromEntries(value.models.map(model => {
       const id = model.id;
       const previous = entry?.models?.[id] ?? {};
-      const next = { ...previous, name: previous.name === `${id} · image: use wikivibe_images.generate_image` ? id : (previous.name ?? id),
+      const displayName = displayModelID(id);
+      const next = { ...previous, name: previous.name === `${id} · image: use wikivibe_images.generate_image` || previous.name === id ? displayName : (previous.name ?? displayName),
         provider: { npm: responseAPI(value, model) ? '@ai-sdk/openai' : '@ai-sdk/openai-compatible' } };
       if (model.contextWindow !== undefined) next.limit = { ...(object(previous.limit) ? previous.limit : {}), context: model.contextWindow };
       if (previous.name === `${id} · image: use wikivibe_images.generate_image`) {
@@ -574,7 +580,7 @@ function codexCatalog(models) {
     const id = model.id;
     const image = isImageModel(model);
     return {
-      slug: id, display_name: `WikiVibe · ${id}`, description: id === 'gemini-3.1-flash-lite-preview'
+      slug: id, display_name: `WikiVibe · ${displayModelID(id)}`, description: id === 'gemini-3.1-flash-lite-preview'
         ? 'WikiVibe; Google Preview снят с обслуживания, маршрут шлюза и reasoning не проверены.'
         : image ? 'Image model. Native generation depends on the client and gateway; image reasoning levels are not declared by the catalog.'
           : 'WikiVibe; совместимость Responses и инструментов не проверена.',
@@ -631,7 +637,7 @@ function render(agent, rel, bytes, value, root, merge = false, providerId = 'wik
       // Merge keeps the user's own picker rows and replaces only plugin-labelled ones.
       const options = (picker.options ?? []).filter(row => !(merge && typeof row.label === 'string' && row.label.startsWith('WikiVibe · ')));
       if (options.some(row => value.models.some(model => model.id === row.model))) fail('Claude Code: модель уже существует в пользовательском modelPicker.');
-      picker.options = [...options, ...value.models.map(({ id }) => ({ model: id, label: `WikiVibe · ${id}` }))];
+      picker.options = [...options, ...value.models.map(({ id }) => ({ model: id, label: `WikiVibe · ${displayModelID(id)}` }))];
       picker.replaceBuiltInOptions = true;
       expandAllowlist(config, 'availableModels', value.models.map(({ id }) => id));
       env.ANTHROPIC_BASE_URL = value.baseUrl.slice(0, -3);

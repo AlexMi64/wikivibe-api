@@ -149,6 +149,23 @@ test('an ID oh-my-pi does not know still gets documented reasoning levels and im
   assert.equal(slug.get('deepseek-v4.1-flash').default_reasoning_level, 'high');
 });
 
+test('provider prefixes stay in model IDs but not in client-facing labels', async t => {
+  const home = await homeFor(t);
+  const id = 'ali/qwen3.8-max';
+  await apply(home, ['codex', 'opencode', 'claude'], { ...value, models: [{ id }] });
+
+  const codex = await readJSON(home, '.codex/wikivibe-models.json');
+  assert.equal(codex.models[0].slug, id);
+  assert.equal(codex.models[0].display_name, 'WikiVibe · qwen3.8-max');
+
+  const opencode = await readJSON(home, '.config/opencode/opencode.json');
+  assert.equal(opencode.provider.wikivibe.models[id].name, 'qwen3.8-max');
+  assert.ok(Object.hasOwn(opencode.provider.wikivibe.models, id));
+
+  const claude = await readJSON(home, '.claude/settings.json');
+  assert.deepEqual(claude.modelPicker.options[0], { model: id, label: 'WikiVibe · qwen3.8-max' });
+});
+
 test('native catalogs retain every ID, current image selection and user roles; restore returns exact originals', async t => {
   const home = await homeFor(t);
   const originals = {

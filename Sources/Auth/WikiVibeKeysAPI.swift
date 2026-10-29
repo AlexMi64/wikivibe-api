@@ -107,6 +107,10 @@ struct WikiVibeModel: Hashable, Sendable {
     let id: String
     let type: String?
     let protocols: [String]?
+    var displayName: String {
+        guard let slash = id.firstIndex(of: "/"), slash > id.startIndex, id.index(after: slash) < id.endIndex else { return id }
+        return String(id[id.index(after: slash)...])
+    }
     var documentedContextWindow: Int? {
         switch id {
         case "gpt-5.5", "gpt-5.6-luna", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-6-astra", "gpt-6-luna", "gpt-6-sol", "gpt-6.1-sol": return 1_050_000

@@ -85,6 +85,12 @@ final class WikiVibeKeysTests: XCTestCase {
             XCTFail("Credential echo was accepted as a model")
         } catch WikiVibeKeysError.unreadable { }
     }
+    func testModelDisplayNameHidesOnlyTheUpstreamPrefix() {
+        XCTAssertEqual(WikiVibeModel(id: "ali/qwen3.8-max", type: nil, protocols: nil).displayName, "qwen3.8-max")
+        XCTAssertEqual(WikiVibeModel(id: "gpt-6.1-sol", type: nil, protocols: nil).displayName, "gpt-6.1-sol")
+        XCTAssertEqual(WikiVibeModel(id: "/model", type: nil, protocols: nil).displayName, "/model")
+    }
+
     func testKeyRefusalIsNotAnExpiredAccountSession() async throws {
         let service = api { _ in (401, #"{"message":"fixture-api-key"}"#) }
         do {

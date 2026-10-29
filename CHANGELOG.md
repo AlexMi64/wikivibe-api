@@ -2,6 +2,14 @@
 
 ## 0.1.0 — unreleased
 
+- Removed upstream provider prefixes such as `ali/` from model names shown in Codex, Claude Code, OpenCode and the settings catalog. Full IDs remain in routes and requests; future catalog IDs receive the same display-only shortening.
+
+### Preview 24 — unprefixed model names — 2026-10-30
+
+- The app displays `qwen3.8-max` instead of `ali/qwen3.8-max` in model lists and previews while preserving `ali/qwen3.8-max` as the actual model ID.
+- Codex/Claude Code catalogs and OpenCode names use the same display-only rule. The prefix is derived from every ID at runtime, so newly added models are handled without a hardcoded model list.
+- Verification: Node adapter and Swift model-display regression tests cover prefixed and unprefixed IDs.
+
 ### Preview 23 — finished settings surface and widget footer geometry — 2026-10-25
 
 - Finished the settings window as one service-style surface: every action uses the shared settings button language, the layout editor uses the same dark panel, and dropdowns open as keyboard-accessible dark lists with selected-state marks instead of native gray menus.
