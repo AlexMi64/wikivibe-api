@@ -47,6 +47,8 @@ WikiVibe — приложение для macOS с виджетом у края �
 
 **Модели и изображения:** все ID каталога, включая `gpt-image-*`, передаются всем четырём агентам. Выбранный доступный image-ID Codex сохраняется при повторной настройке; каталог только из image-ID не заменяет существующую текстовую модель, provider или profile.
 
+В интерфейсах агентов отображаемое имя модели сокращается до части после префикса поставщика: например, `ali/qwen3.8-max` показывается как `qwen3.8-max`. Полный ID сохраняется в маршрутах, каталогах и значениях выбора, поэтому запросы используют исходный идентификатор.
+
 Виджет сохраняет объявленный провайдером `type` модели при передаче адаптерам и показывает `image` в preview. Для oh-my-pi тип `image` выбирает штатный IMAGE-каталог даже без префикса `gpt-image-`; ID не подменяется. Изменение типа после preview требует нового подтверждения. Это не добавляет отсутствующие инструменты в клиент.
 
 **Только штатные возможности:** WikiVibe не устанавливает image-MCP, прокси, carrier-обходы или специальные инструкции генерации. Установленные агенты и их capability-фильтры не меняются. Само наличие ID в меню не доказывает поддержку выдачи изображений.
@@ -205,6 +207,8 @@ Exact-ID official source links were checked on 2026-10-17. Gemini input limits a
 
 **Models and images:** every catalog ID, including `gpt-image-*`, is passed to all four agents. Reapplying preserves an available selected Codex image ID; an image-only catalog does not replace an existing text model, provider or profile.
 
+Agent interfaces shorten a model's displayed name to the portion after the provider prefix: for example, `ali/qwen3.8-max` appears as `qwen3.8-max`. The full ID remains in routes, catalogs and selection values, so requests use the original identifier.
+
 The widget preserves provider-declared model `type` through adapter serialization and labels image entries in preview. OMP uses `type: image` for its native IMAGE catalog even without a `gpt-image-` prefix, without substituting IDs. Changing type after preview requires confirmation again. This does not add tools missing from the client.
 
 **Native features only:** WikiVibe installs no image MCP, proxy, carrier workaround or special generation instructions. Installed agents and their capability filters remain unchanged. A selectable ID does not establish image-output support.
@@ -362,6 +366,8 @@ WikiVibe 是一款 macOS 应用，提供屏幕边缘小组件和菜单栏入口�
 - **Claude Code：**使用 `~/.claude/settings.json`；替换全局 `ANTHROPIC_BASE_URL` 和 `ANTHROPIC_AUTH_TOKEN`，并在 `modelPicker` 添加可用模型。这不是独立提供商，写入前会显示警告。模型选择器需要 2.1.242 或更新版本；请在新会话中用 `/model` 选择。
 
 **模型与图像：**所有目录 ID（包括 `gpt-image-*`）都交给四个代理。重新配置保留 Codex 已选择且仍可用的图像 ID；只有图像 ID 的目录不会替换现有文本模型、提供商或 profile。
+
+代理界面会将模型显示名称缩短为提供商前缀之后的部分，例如将 `ali/qwen3.8-max` 显示为 `qwen3.8-max`。完整 ID 仍保留在路由、目录和选择值中，因此请求使用原始标识符。
 
 组件将提供商声明的模型 `type` 传递给适配器，并在预览中标注图像模型。即使 ID 不以 `gpt-image-` 开头，OMP 也根据 `type: image` 放入原生 IMAGE 目录，不替换 ID。预览后类型发生变化需重新确认；这不会为客户端增加缺失的工具。
 
