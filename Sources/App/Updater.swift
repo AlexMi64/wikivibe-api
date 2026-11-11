@@ -33,18 +33,18 @@ final class Updater: NSObject, ObservableObject, SPUUpdaterDelegate {
             switch self {
             case .idle:          return nil
             case .checking:      return L10n.t("Checking…")
-            case .upToDate:      return L10n.t("Codenotch is up to date.")
-            case .found(let v):  return L10n.t("Version \(v) is available — the notch has it.")
+            case .upToDate:      return L10n.t("WikiVibe is up to date.")
+            case .found(let v):  return L10n.t("Version \(v) is available.")
             case .unreachable:
-                // The one people actually hit, and the one Sparkle's wording
-                // hides: nothing is wrong with the app or the machine.
-                return L10n.t("Couldn't reach the update server. Codenotch will try again on its own — nothing is wrong with this copy.")
+                return L10n.t("Could not reach the update server. Try again later.")
             case .failed(let why): return why
             }
         }
     }
 
     @Published private(set) var outcome: Outcome = .idle
+    @Published private(set) var canCheck = false
+    private var availabilityObservation: NSKeyValueObservation?
 
     /// What the notch is offering, and how far along taking it up is.
     @Published private(set) var prompt: UpdatePrompt?
@@ -70,11 +70,22 @@ final class Updater: NSObject, ObservableObject, SPUUpdaterDelegate {
     /// offered in the notch first.
     var automatic: Bool {
         get { sparkle.automaticallyChecksForUpdates }
-        set { sparkle.automaticallyChecksForUpdates = newValue }
+        set {
+            objectWillChange.send()
+            sparkle.automaticallyChecksForUpdates = newValue
+        }
     }
 
     var currentVersion: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
+    }
+
+    var currentBuild: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "?"
+    }
+
+    nonisolated static func versionLabel(display: String, build: String) -> String {
+        display == build ? display : "\(display) (\(build))"
     }
 
     var lastChecked: Date? { sparkle.lastUpdateCheckDate }
@@ -85,13 +96,17 @@ final class Updater: NSObject, ObservableObject, SPUUpdaterDelegate {
     /// delegate.
     func start() {
         guard !started else { return }
-        started = true
         sparkle.automaticallyDownloadsUpdates = false
         do {
             try sparkle.start()
         } catch {
             outcome = .failed(error.localizedDescription)
             return
+        }
+        started = true
+        availabilityObservation = sparkle.observe(\.canCheckForUpdates, options: [.initial, .new]) { [weak self] _, change in
+            let available = change.newValue ?? false
+            Task { @MainActor in self?.canCheck = available }
         }
         if sparkle.automaticallyChecksForUpdates {
             sparkle.checkForUpdatesInBackground()
@@ -103,15 +118,31 @@ final class Updater: NSObject, ObservableObject, SPUUpdaterDelegate {
 
     /// Sparkle's answer-taker for the update it has offered.
     private var answer: ((SPUUserUpdateChoice) -> Void)?
+    private var installAfterCheck = false
+
+    /// A deferred update still installs with one click: revalidate the feed,
+    /// then accept the new offer only for this explicit user request.
+    func installUpdate() {
+        if prompt?.phase == .available {
+            respond(.install)
+        } else if pending != nil, canCheck {
+            installAfterCheck = true
+            checkNow()
+        }
+    }
 
     func offer(_ item: SUAppcastItem, reply: @escaping (SPUUserUpdateChoice) -> Void) {
         previewing = false
-        pending = item.displayVersionString
+        pending = Self.versionLabel(display: item.displayVersionString, build: item.versionString)
         pendingIsPreview = false
         answer = reply
-        prompt = UpdatePrompt(version: item.displayVersionString,
+        prompt = UpdatePrompt(version: Self.versionLabel(display: item.displayVersionString, build: item.versionString),
                               notes: UpdatePrompt.summary(of: item.itemDescription ?? ""),
                               phase: .available)
+        if installAfterCheck {
+            installAfterCheck = false
+            respond(.install)
+        }
     }
 
     /// Release notes that arrived after the offer, for the line under it.
@@ -219,6 +250,7 @@ final class Updater: NSObject, ObservableObject, SPUUpdaterDelegate {
     /// broken button.
     func checkNow() {
         start()
+        guard started, sparkle.canCheckForUpdates else { return }
         outcome = .checking
         sparkle.checkForUpdates()
         // Never left on "Checking…". Sparkle reports every ending it knows
@@ -229,6 +261,7 @@ final class Updater: NSObject, ObservableObject, SPUUpdaterDelegate {
         DispatchQueue.main.asyncAfter(deadline: .now() + Self.checkTimeout) { [weak self] in
             guard let self, self.checkGeneration == started else { return }
             self.outcome = Self.outcome(afterTimeoutFrom: self.outcome)
+            if case .failed = self.outcome { self.installAfterCheck = false }
         }
     }
 
@@ -256,12 +289,13 @@ final class Updater: NSObject, ObservableObject, SPUUpdaterDelegate {
     nonisolated func updaterDidNotFindUpdate(_ updater: SPUUpdater) {
         Task { @MainActor in
             self.outcome = .upToDate(Date())
+            self.installAfterCheck = false
             if !self.pendingIsPreview { self.pending = nil }
         }
     }
 
     nonisolated func updater(_ updater: SPUUpdater, didFindValidUpdate item: SUAppcastItem) {
-        let version = item.displayVersionString
+        let version = Self.versionLabel(display: item.displayVersionString, build: item.versionString)
         Task { @MainActor in
             self.outcome = .found(version)
             self.pending = version
@@ -274,6 +308,7 @@ final class Updater: NSObject, ObservableObject, SPUUpdaterDelegate {
                              error: Error?) {
         let code = error.map { ($0 as NSError).code }
         Task { @MainActor in
+            self.installAfterCheck = false
             self.outcome = Self.outcome(afterCycleFrom: self.outcome, errorCode: code)
         }
     }
@@ -281,6 +316,7 @@ final class Updater: NSObject, ObservableObject, SPUUpdaterDelegate {
     nonisolated func updater(_ updater: SPUUpdater, didAbortWithError error: Error) {
         let code = (error as NSError).code
         Task { @MainActor in
+            self.installAfterCheck = false
             // A feed that cannot be fetched is the ordinary failure — offline,
             // or the server is down — and it is not the user's problem to
             // solve. Anything else is reported as itself.

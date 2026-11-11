@@ -1348,27 +1348,6 @@ final class AppPresenceTests: XCTestCase {
 /// worded here instead.
 @MainActor
 final class UpdateOutcomeTests: XCTestCase {
-    /// The case people actually hit, and the one that most needs reassuring:
-    /// nothing is wrong with their copy of the app.
-    func testAnUnreachableFeedSaysSoWithoutBlamingTheApp() throws {
-        let message = try XCTUnwrap(Updater.Outcome.unreachable.message)
-        XCTAssertTrue(message.contains("Couldn't reach"))
-        XCTAssertTrue(message.contains("nothing is wrong with this copy"))
-        XCTAssertFalse(message.lowercased().contains("error occurred"))
-    }
-
-    func testEveryOutcomeExceptIdleSaysSomething() {
-        XCTAssertNil(Updater.Outcome.idle.message)
-        for outcome: Updater.Outcome in [.checking, .upToDate(Date()), .found("1.1.0"),
-                                         .unreachable, .failed("disk full")] {
-            XCTAssertNotNil(outcome.message, "\(outcome) says nothing")
-        }
-    }
-
-    func testAFoundUpdateNamesTheVersion() throws {
-        let message = try XCTUnwrap(Updater.Outcome.found("1.2.0").message)
-        XCTAssertTrue(message.contains("1.2.0"))
-    }
 
     /// The distinction the wording depends on: a feed that cannot be fetched is
     /// routine, anything else is reported as itself.

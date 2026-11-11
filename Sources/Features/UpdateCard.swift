@@ -73,14 +73,14 @@ struct UpdateCard: View {
     private var installing: Bool { prompt.phase != .available }
 
     private var title: String {
-        installing ? L10n.t("Installing Codenotch \(prompt.version)")
-                   : L10n.t("Codenotch \(prompt.version) is available")
+        installing ? L10n.t("Installing WikiVibe \(prompt.version)")
+                   : L10n.t("WikiVibe \(prompt.version) is available")
     }
 
     private var status: String {
         switch prompt.phase {
         case .available:
-            return prompt.notes.isEmpty ? L10n.t("A new version of Codenotch is ready to install.") : prompt.notes
+            return prompt.notes.isEmpty ? L10n.t("A new version of WikiVibe is ready to install.") : prompt.notes
         case .downloading(let share):
             guard let share else { return L10n.t("Downloading…") }
             return L10n.t("Downloading… \(Int((share * 100).rounded()))%")

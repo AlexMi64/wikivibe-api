@@ -1,6 +1,15 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "App updates": {"extractionState":"manual","localizations":{"ru":{"stringUnit":{"state":"translated","value":"Обновления приложения"}},"zh-Hans":{"stringUnit":{"state":"translated","value":"应用更新"}}}},
+    "Check for updates…": {"extractionState":"manual","localizations":{"ru":{"stringUnit":{"state":"translated","value":"Проверить обновления…"}},"zh-Hans":{"stringUnit":{"state":"translated","value":"检查更新…"}}}},
+    "Checks every six hours. Installs only when you choose Update, then restarts WikiVibe.": {"extractionState":"manual","localizations":{"ru":{"stringUnit":{"state":"translated","value":"Проверка каждые шесть часов. Установка — только по кнопке «Обновить», затем WikiVibe перезапустится."}},"zh-Hans":{"stringUnit":{"state":"translated","value":"每六小时检查一次。仅在选择更新后安装，然后重新启动 WikiVibe。"}}}},
+    "WikiVibe is up to date.": {"extractionState":"manual","localizations":{"ru":{"stringUnit":{"state":"translated","value":"Установлена последняя версия WikiVibe."}},"zh-Hans":{"stringUnit":{"state":"translated","value":"WikiVibe 已是最新版本。"}}}},
+    "Version %@ is available.": {"extractionState":"manual","localizations":{"ru":{"stringUnit":{"state":"translated","value":"Доступна версия %@."}},"zh-Hans":{"stringUnit":{"state":"translated","value":"版本 %@ 可用。"}}}},
+    "Could not reach the update server. Try again later.": {"extractionState":"manual","localizations":{"ru":{"stringUnit":{"state":"translated","value":"Не удалось подключиться к серверу обновлений. Повторите позже."}},"zh-Hans":{"stringUnit":{"state":"translated","value":"无法连接更新服务器，请稍后重试。"}}}},
+    "Installing WikiVibe %@": {"extractionState":"manual","localizations":{"ru":{"stringUnit":{"state":"translated","value":"Установка WikiVibe %@"}},"zh-Hans":{"stringUnit":{"state":"translated","value":"正在安装 WikiVibe %@"}}}},
+    "WikiVibe %@ is available": {"extractionState":"manual","localizations":{"ru":{"stringUnit":{"state":"translated","value":"Доступна WikiVibe %@"}},"zh-Hans":{"stringUnit":{"state":"translated","value":"WikiVibe %@ 可用"}}}},
+    "A new version of WikiVibe is ready to install.": {"extractionState":"manual","localizations":{"ru":{"stringUnit":{"state":"translated","value":"Новая версия WikiVibe готова к установке."}},"zh-Hans":{"stringUnit":{"state":"translated","value":"WikiVibe 新版本已准备好安装。"}}}},
     "Top up": {"extractionState":"manual","localizations":{"ru":{"stringUnit":{"state":"translated","value":"Пополнить"}},"zh-Hans":{"stringUnit":{"state":"translated","value":"充值"}}}},
     "Open the WikiVibe top-up page in your browser. The website may ask you to sign in.": {"extractionState":"manual","localizations":{"ru":{"stringUnit":{"state":"translated","value":"Открыть страницу пополнения WikiVibe в браузере. Сайт может попросить войти в аккаунт."}},"zh-Hans":{"stringUnit":{"state":"translated","value":"在浏览器中打开 WikiVibe 充值页面。网站可能要求登录。"}}}},
     "Open https://api.wikivibe.dev/purchase in your browser to top up your balance.": {"extractionState":"manual","localizations":{"ru":{"stringUnit":{"state":"translated","value":"Чтобы пополнить баланс, откройте https://api.wikivibe.dev/purchase в браузере."}},"zh-Hans":{"stringUnit":{"state":"translated","value":"请在浏览器中打开 https://api.wikivibe.dev/purchase 为余额充值。"}}}},
@@ -57957,6 +57966,7 @@
     "Check for updates automatically": {
       "extractionState": "manual",
       "localizations": {
+        "ru": {"stringUnit":{"state":"translated","value":"Проверять обновления автоматически"}},
         "uk": {
           "stringUnit": {
             "state": "translated",
@@ -59245,6 +59255,7 @@
     "Downloading…": {
       "extractionState": "manual",
       "localizations": {
+        "ru": {"stringUnit":{"state":"translated","value":"Загрузка…"}},
         "uk": {
           "stringUnit": {
             "state": "translated",
@@ -59268,6 +59279,7 @@
     "Preparing…": {
       "extractionState": "manual",
       "localizations": {
+        "ru": {"stringUnit":{"state":"translated","value":"Подготовка…"}},
         "uk": {
           "stringUnit": {
             "state": "translated",
@@ -59291,6 +59303,7 @@
     "Installing…": {
       "extractionState": "manual",
       "localizations": {
+        "ru": {"stringUnit":{"state":"translated","value":"Установка…"}},
         "uk": {
           "stringUnit": {
             "state": "translated",

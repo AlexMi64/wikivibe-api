@@ -1,5 +1,5 @@
 # Native macOS development and local ad-hoc DMG packaging.
-# Developer ID signing, notarization and publishing are not configured.
+# Developer ID and notarization are not configured; signed updates use GitHub Actions.
 ifeq (,$(DEVELOPER_DIR))
 ifneq (,$(wildcard /Applications/Xcode.app/Contents/Developer))
 export DEVELOPER_DIR := /Applications/Xcode.app/Contents/Developer

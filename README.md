@@ -107,17 +107,22 @@ make run
 
 `make dmg` собирает универсальный Release для Intel и Apple Silicon и создаёт `build/WikiVibe.dmg`. Для установки на macOS 15+ откройте образ, закройте уже запущенный WikiVibe и перетащите `WikiVibe.app` на ссылку `Applications` («Программы»). Затем извлеките образ и запускайте приложение из «Программ». Node.js 22+ для настройки агентов устанавливается отдельно и не входит в DMG.
 
-`make build` остаётся неподписанной отладочной сборкой. DMG использует локальную ad-hoc-подпись, а не Developer ID; проверки Apple (notarization) нет. Для этой сборки Hardened Runtime отключён: без Team ID его проверка библиотек блокирует Sparkle при запуске на Apple Silicon. Отладочные entitlements не добавляются; упаковка проверяет флаги подписи обеих архитектур. Это настройка приложения, а не отключение защиты macOS. Если macOS блокирует доверенную копию, после попытки запуска используйте «Системные настройки → Конфиденциальность и безопасность → Всё равно открыть». Не отключайте Gatekeeper целиком. Готовые DMG публикуются вручную в [GitHub Releases](https://github.com/AlexMi64/wikivibe-api/releases); автоматические обновления не настроены.
+После установки сборки с updater приложение проверяет подписанный Sparkle-feed каждые шесть часов и показывает доступную версию в настройках и виджете. Нажатие «Обновить» — явное: приложение скачивает проверенный архив, устанавливает его и перезапускается. Автоматическая установка выключена; проверка и установка не отправляют системный профиль.
 
-### Запуск и конфиденциальность
+Для публикации новый build number сначала собирается и загружается в GitHub Release, затем workflow обновляет signed appcast. Приватный Sparkle Ed25519 seed хранится только в GitHub Actions secret `SPARKLE_PRIVATE_KEY`; в приложении находится только открытый ключ. Существующие пользователи должны один раз установить сборку с updater вручную; после этого обновления идут одной кнопкой.
 
-`Sources/App/AppDelegate.swift` запускает интерфейс WikiVibe и вход в аккаунт. Поиск аккаунтов сторонних сервисов, наблюдение за агентами, индексация локальных расходов, сервис связи с телефоном, миграция учётных данных и автоматические обновления не запускаются. Отрисовка не обращается к механизму обнаружения аккаунтов. При создании настроек не читается конфигурация LM Studio и не переносятся старые ключи пользовательских API в Keychain.
+`make build` остаётся неподписанной отладочной сборкой. DMG использует локальную ad-hoc-подпись, а не Developer ID; проверки Apple (notarization) нет. Для этой сборки Hardened Runtime отключён: без Team ID его проверка библиотек блокирует Sparkle при запуске на Apple Silicon. Отладочные entitlements не добавляются; упаковка проверяет флаги подписи обеих архитектур. Это настройка приложения, а не отключение защиты macOS. Если macOS блокирует доверенную копию, после попытки запуска используйте «Системные настройки → Конфиденциальность и безопасность → Всё равно открыть». Не отключайте Gatekeeper целиком. GitHub Release и signed appcast публикуются workflow только после повышения build number.
+
+`Sources/App/AppDelegate.swift` запускает интерфейс WikiVibe и вход в аккаунт. Поиск аккаунтов сторонних сервисов, наблюдение за агентами, индексация локальных расходов, сервис связи с телефоном и миграция учётных данных не запускаются. Updater обращается только к подписанному публичному appcast и не включает системный профиль. Отрисовка не обращается к механизму обнаружения аккаунтов. При создании настроек не читается конфигурация LM Studio и не переносятся старые ключи пользовательских API в Keychain.
 
 Во время входа приложение открывает один HTTP-листенер на `127.0.0.1` и закрывает его, когда попытка заканчивается. Листенер отвечает только на зарегистрированный путь `/callback`, сверяет `state` и не принимает запросы других методов; порт освобождается на любом исходе — успехе, отказе, тайм-ауте и выходе из приложения. Пароль вводится на сайте WikiVibe в браузере и в приложение не попадает; сохраняются только токены сессии и поля аккаунта (`id`, `username`, `email`).
 
-Наличие библиотек провайдеров в исходниках не означает работающий коннектор WikiVibe. Sparkle остаётся зависимостью сборки, но объект обновления не создаётся, а канал обновлений не настроен. Данные подписи, URL обновлений и открытый ключ не настроены.
+Наличие библиотек провайдеров в исходниках не означает работающий коннектор WikiVibe. Sparkle используется для подписанных обновлений: feed находится в GitHub Release `update-feed`, установка выполняется только после нажатия «Обновить», а архив и feed проверяются Ed25519-ключом перед установкой. Приватный ключ не входит в репозиторий.
 
 Продукт и схема Xcode: `WikiVibe`. Идентификатор приложения и подсистема журналирования: `dev.wikivibe.desktop`.
+### Граница безопасности релиза и обновлений
+
+Updater проверяет и подписанный appcast, и архив обновления до распаковки. GitHub Actions не переписывает существующий versioned release и не продвигает release `update-feed`, пока новый архив и его запись в appcast не существуют. Приватный seed подписи не хранится в workflow: он передаётся только из repository secret `SPARKLE_PRIVATE_KEY` во время запуска.
 
 На раннем этапе ревью обнаружило косвенный вызов поиска сторонних аккаунтов из отрисовки. До финальной проверки эту цепочку удалили. Отсутствие чтений метаданных аккаунтов или персональных данных при более раннем запуске не установлено; пользовательские файлы с учётными данными для выяснения этого не исследовались.
 
@@ -267,18 +272,22 @@ The app is built at `build/DerivedData/Build/Products/Debug/WikiVibe.app`. `make
 
 `make dmg` builds a universal Release for Intel and Apple Silicon at `build/WikiVibe.dmg`. To install on macOS 15+, open the image, quit any running WikiVibe, and drag `WikiVibe.app` onto the `Applications` shortcut. Eject the image and launch the app from Applications. Node.js 22+ for agent configuration is installed separately and is not included in the DMG.
 
-`make build` remains an unsigned debug build. The DMG uses local ad-hoc signing, not Developer ID, and is not notarized by Apple. Hardened Runtime is disabled for this build: without a Team ID, its library validation blocks Sparkle at launch on Apple Silicon. Debug entitlements are not injected; packaging checks both architectures' signature flags. This is an app build policy, not a system security override. If macOS blocks a trusted copy, attempt to launch it and use System Settings → Privacy & Security → Open Anyway. Do not disable Gatekeeper globally. Installers are published manually in [GitHub Releases](https://github.com/AlexMi64/wikivibe-api/releases); automatic updates are not configured.
+After installing a build with the updater, the app checks the signed Sparkle feed every six hours and shows an available version in Settings and the widget. Clicking Update is explicit: the app downloads the verified archive, installs it and restarts. Automatic installation is disabled; checking and installing do not send a system profile.
 
-### Runtime and privacy
+For publication, a new build number is built and uploaded to a GitHub Release first; the workflow then advances the signed appcast. The private Sparkle Ed25519 seed exists only in the GitHub Actions secret `SPARKLE_PRIVATE_KEY`; the app contains only the public key. Existing users must install one updater-enabled build manually; after that, updates are one click.
 
-`Sources/App/AppDelegate.swift` starts the WikiVibe interface and account sign-in. It does not start third-party provider discovery, agent monitors, local cost indexing, phone-link services, credential migration or automatic updates. Rendering does not call account discovery. Preference initialization does not read LM Studio configuration or migrate legacy endpoint keys into Keychain.
+`make build` remains an unsigned debug build. The DMG uses local ad-hoc signing, not Developer ID, and is not notarized by Apple. Hardened Runtime is disabled for this build: without a Team ID, its library validation blocks Sparkle at launch on Apple Silicon. Debug entitlements are not injected; packaging checks both architectures' signature flags. This is an app build policy, not an OS security override. If macOS blocks a trusted copy, attempt to launch it and use System Settings → Privacy & Security → Open Anyway. Do not disable Gatekeeper globally. GitHub Release and the signed appcast are published by the workflow only after the build number is increased.
+
+`Sources/App/AppDelegate.swift` starts the WikiVibe interface and account sign-in. It does not start third-party provider discovery, agent monitors, local cost indexing, phone-link services or credential migration. The updater contacts only the signed public appcast and does not send a system profile. Rendering does not call account discovery. Preference initialization does not read LM Studio configuration or migrate legacy endpoint keys into Keychain.
 
 While a sign-in is in progress the app opens one HTTP listener on `127.0.0.1` and closes it when the attempt ends. The listener answers only the registered `/callback` path, verifies `state` and rejects other methods; the port is released on every outcome — success, refusal, timeout and app termination. The password is typed on the WikiVibe site in the browser and never reaches the app; only the session tokens and the account fields (`id`, `username`, `email`) are stored.
 
-Provider libraries in the source tree are not an active WikiVibe connector. Sparkle remains a build dependency, but the updater is not instantiated. No signing identity, update feed or public signing key is configured.
+Provider libraries in the source tree are not an active WikiVibe connector. Sparkle is used for signed updates: the feed is the GitHub Release `update-feed`, installation requires the Update button, and the archive and feed are checked with Ed25519 before installation. The private key is not in the repository.
+### Release/update security boundary
+
+The updater verifies both the signed appcast and the update archive before extraction. The GitHub Actions workflow never rewrites an existing versioned release and never advances the `update-feed` release until the new archive and its appcast entry exist. The workflow does not contain the private signing seed; it is injected from the `SPARKLE_PRIVATE_KEY` repository secret at runtime.
 
 Product and scheme: `WikiVibe`. Bundle identifier and logging subsystem: `dev.wikivibe.desktop`.
-
 During early development, review found an indirect account-discovery path in rendering. That path was removed before the final verification. Historical absence of account-metadata or PII reads in the earlier launch was not established; user credential files were not inspected to investigate it.
 
 ### Backend requirements
@@ -427,15 +436,19 @@ make run
 
 `make dmg` 为 Intel 与 Apple Silicon 构建通用 Release，并生成 `build/WikiVibe.dmg`。在 macOS 15 或更新版本上安装时，打开磁盘映像，退出已运行的 WikiVibe，将 `WikiVibe.app` 拖到 `Applications`（应用程序）快捷方式。弹出映像后，从“应用程序”启动。代理配置需要另行安装 Node.js 22+，DMG 不包含 Node.js。
 
-`make build` 仍生成未签名的调试版本。DMG 使用本地 ad-hoc 签名，而非 Developer ID，且未经过 Apple 公证。此构建关闭 Hardened Runtime：缺少 Team ID 时，其库验证会在 Apple Silicon 上阻止 Sparkle 加载。构建不注入调试 entitlements，打包会检查两种架构的签名标志。这是应用的构建策略，不会关闭系统安全保护。如果 macOS 阻止可信副本，请先尝试启动，再到“系统设置 → 隐私与安全性 → 仍要打开”允许运行。不要全局禁用 Gatekeeper。安装包手动发布到 [GitHub Releases](https://github.com/AlexMi64/wikivibe-api/releases)，尚未配置自动更新。
+`make build` 仍生成未签名的调试版本。DMG 使用本地 ad-hoc 签名，而非 Developer ID，且未经过 Apple 公证。此构建关闭 Hardened Runtime：缺少 Team ID 时，其库验证会在 Apple Silicon 上阻止 Sparkle 加载。构建不注入调试 entitlements，打包会检查两种架构的签名标志。这是应用的构建策略，不会关闭系统安全保护。如果 macOS 阻止可信副本，请先尝试启动，再到“系统设置 → 隐私与安全性 → 仍要打开”允许运行。不要全局禁用 Gatekeeper。
+
+安装带有更新器的版本后，应用在启动时及每六小时检查签名的 Sparkle 更新源。在设置或小组件中点击“更新”，即可下载、验证、安装并重启；不会未经同意自动安装，也不会发送系统配置资料。旧版本用户需先手动安装一次带更新器的版本。
+
+团队提高 `project.yml` 中的 build number 并推送到 `main` 后，GitHub Actions 先发布版本归档，再更新 `update-feed` 发布中的签名 appcast。Ed25519 私钥仅存放在 `SPARKLE_PRIVATE_KEY` Actions secret；应用和仓库中只有公钥。
 
 ### 启动行为和隐私
 
-`Sources/App/AppDelegate.swift` 启动 WikiVibe 的界面和账号登录，不会启动其他服务的账号发现、代理监控、本地费用索引、手机连接服务、凭据迁移或自动更新。渲染不会调用账号发现逻辑。初始化设置时，也不会读取 LM Studio 配置或把旧的自定义接口密钥迁移到 Keychain。
+`Sources/App/AppDelegate.swift` 启动 WikiVibe 的界面和账号登录，不会启动其他服务的账号发现、代理监控、本地费用索引、手机连接服务或凭据迁移。更新器仅访问公开的签名更新源，不发送系统配置资料。渲染不会调用账号发现逻辑。初始化设置时，也不会读取 LM Studio 配置或把旧的自定义接口密钥迁移到 Keychain。
 
 登录期间应用会在 `127.0.0.1` 上打开一个 HTTP 监听端口，并在本次尝试结束时关闭。该监听只响应已注册的 `/callback` 路径，校验 `state`，拒绝其他方法；无论成功、被拒、超时还是应用退出，端口都会释放。密码在浏览器的 WikiVibe 网站上输入，不会进入应用；只有会话令牌和账号字段（`id`、`username`、`email`）会被保存。
 
-源码中保留提供方库不等于已经接通 WikiVibe。Sparkle 仍是构建依赖，但更新器不会创建，也没有配置更新源、签名身份、更新地址或公开签名密钥。
+源码中保留提供方库不等于已经接通 WikiVibe。Sparkle 会在解压前验证 appcast 和更新归档的 Ed25519 签名；仅在用户点击“更新”后安装。现有版本发布不会被覆盖，更新源不会回退到较旧版本。
 
 产品和 Xcode scheme 都叫 `WikiVibe`。应用标识与日志子系统是 `dev.wikivibe.desktop`。
 

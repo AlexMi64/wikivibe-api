@@ -1,6 +1,13 @@
 # Changelog
 
 ## 0.1.0 — unreleased
+### Preview 25 — one-click signed updates — 2026-11-11
+
+- Connected the existing Sparkle updater to the running app lifecycle and Settings surface. The app checks a signed public feed every six hours, shows an available version in the widget and Settings, and installs only after the user chooses Update; automatic downloading and system profiling remain disabled.
+- Added Sparkle Ed25519 metadata, feed verification before extraction, an immutable versioned release step followed by an `update-feed` release, and GitHub Actions publication using only the `SPARKLE_PRIVATE_KEY` Actions secret. The private seed is never committed or embedded; only the public key is in the app.
+- Existing users need one manual install of an updater-enabled build. Later releases are one click and restart WikiVibe after installation.
+- Verification: 9 focused Swift updater tests, 17 Node adapter tests, plist/workflow/script checks, Sparkle seed sign/verify fixture, and universal Release packaging remain required before publication.
+
 
 - Removed upstream provider prefixes such as `ali/` from model names shown in Codex, Claude Code, OpenCode and the settings catalog. Full IDs remain in routes and requests; future catalog IDs receive the same display-only shortening.
 

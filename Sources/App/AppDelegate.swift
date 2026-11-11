@@ -14,6 +14,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     /// restored before the window first draws.
     private let auth = WikiVibeAuthCoordinator()
     private let performance = WikiVibePerformanceStore()
+    private let updater = Updater()
 
     static func drawn(_ snapshots: [ProviderSnapshot], weekly: Bool, paced: Bool)
     -> [ProviderSnapshot] {
@@ -29,6 +30,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let fleet = NotchFleet(scope: preferences.notchScope, edge: preferences.notchEdge)
         self.fleet = fleet
         fleet.onOpenSettings = { [weak self] in self?.toggleAccountWindow() }
+        fleet.onUpdateChoice = { [weak self] choice in self?.updater.respond(choice) }
         fleet.onTopUp = { [weak self] in self?.openTopUp() }
         // The notch has nothing to poll: this app reads the account, not usage.
         // Widget clicks toggle the account window instead of polling usage.
@@ -56,6 +58,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in self?.updateLocalizedSurface() }
             .store(in: &cancellables)
+        updater.objectWillChange
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                DispatchQueue.main.async {
+                    guard let self, let fleet = self.fleet else { return }
+                    fleet.apply(updatePending: self.updater.pending != nil)
+                    fleet.apply(updatePrompt: self.updater.prompt)
+                }
+            }
+            .store(in: &cancellables)
         // The notch row is the account's own state, so it is repainted when
         // sign-in, sign-out or a restore changes what the app knows.
         auth.objectWillChange
@@ -72,6 +84,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             .store(in: &cancellables)
         performance.start()
         fleet.show()
+        updater.start()
         // A stored session is picked up before the window can ask, so the
         // account row never briefly claims the user is signed out.
         Task { await auth.restore() }
@@ -149,12 +162,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let settings = NSMenuItem(title: "WikiVibe…", action: #selector(showAccount), keyEquivalent: ",")
         settings.target = self
         menu.addItem(settings)
+        let updates = NSMenuItem(title: L10n.t("Check for updates…"), action: #selector(checkForUpdates), keyEquivalent: "")
+        updates.target = self
+        menu.addItem(updates)
         menu.addItem(.separator())
         let quit = NSMenuItem(title: L10n.t("Quit WikiVibe"), action: #selector(quit), keyEquivalent: "q")
         quit.target = self
         menu.addItem(quit)
         item.menu = menu
         statusItem = item
+    }
+
+    @objc private func checkForUpdates() {
+        openSettings()
+        updater.checkNow()
     }
 
     private func toggleAccountWindow() {
@@ -185,7 +206,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             window.title = "WikiVibe"
             window.isReleasedWhenClosed = false
             window.delegate = self
-            window.contentView = NSHostingView(rootView: WikiVibeAccountView(auth: auth, preferences: preferences, performance: performance))
+            window.contentView = NSHostingView(rootView: WikiVibeAccountView(auth: auth, preferences: preferences, performance: performance, updater: updater))
             window.contentMinSize = NSSize(width: 420, height: 360)
             if !window.setFrameUsingName("WikiVibeAccountWindow") { window.center() }
             window.setFrameAutosaveName("WikiVibeAccountWindow")

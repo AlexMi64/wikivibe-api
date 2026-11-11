@@ -19,7 +19,7 @@ make test TEST_FLAGS='-only-testing:WikiVibeTests/NotchEdgeTests -only-testing:W
 
 ### Credentials and backend work
 
-`Sources/App/AppDelegate.swift` owns startup. Retain the native notch architecture. Do not enable third-party provider discovery, agent-log indexing, phone listeners, credential migration or update feeds as part of WikiVibe integration.
+`Sources/App/AppDelegate.swift` owns startup. Retain the native notch architecture. Do not enable third-party provider discovery, agent-log indexing, phone listeners or credential migration as part of WikiVibe integration. The Sparkle updater is limited to the signed public appcast and explicit user-selected installation.
 
 Do not read another application's credentials during verification. Never print tokens, cookies, keys or PII. Account-session tokens and inference API keys are separate credentials. Desktop session credentials belong only in the macOS keychain (`WikiVibeSessionStore`), never in `UserDefaults`, a log or the web-view store. Opening the browser is not evidence of authentication: only a token exchange that the server accepted is.
 
@@ -33,7 +33,7 @@ Sign-in uses the registered public client `desktop` and PKCE S256. Do not embed 
 - Distinguish missing data, unsupported integration, authentication errors and stale confirmed values through the existing status model. Missing data is not zero.
 - Add deterministic behavioral tests for actual boundaries, transitions and precedence. Do not test source text, incidental wording or mock echoes.
 - Run affected tests and the actual app. Capture only app-owned windows, not the desktop or another application's account screen.
-- Update all three README versions and the changelog with observed evidence. Preserve licenses and attribution.
+- Update all three README versions and the changelog with observed evidence. Preserve licenses and attribution. Release automation must publish the versioned archive before advancing the signed appcast.
 - Commit and push only with the repository owner's authorization. Source publication does not authorize releases, deployment, account operations or payments. Never include build output or user credentials.
 
 Inspect app-owned logs only; redact sensitive data before sharing:
@@ -50,7 +50,7 @@ Inspect app-owned logs only; redact sensitive data before sharing:
 
 ### Учётные данные и серверная интеграция
 
-Запуском управляет `Sources/App/AppDelegate.swift`. Сохраняйте архитектуру виджета. Не подключайте поиск сторонних аккаунтов, индексацию журналов агентов, сервис связи с телефоном, миграцию учётных данных или каналы обновлений.
+`Sources/App/AppDelegate.swift` отвечает за запуск. Сохраняйте нативную архитектуру notch. Не включайте поиск сторонних аккаунтов, индексацию журналов агентов, сервис связи с телефонами или миграцию учётных данных как часть интеграции WikiVibe. Sparkle-updater ограничен подписанным публичным appcast и явной установкой по выбору пользователя.
 
 При проверке не читайте учётные данные других приложений. Не выводите токены, cookies, ключи и персональные данные. Токены сессии аккаунта и ключи inference API — разные сущности. Сессию настольного клиента храните только в macOS Keychain (`WikiVibeSessionStore`), никогда в `UserDefaults`, логах или хранилище web-представления. Открытие браузера не доказывает успешный вход — доказывает только обмен кода, принятый сервером.
 
@@ -64,7 +64,7 @@ Inspect app-owned logs only; redact sensitive data before sharing:
 - Различайте отсутствие данных, неподдерживаемую интеграцию, ошибки входа и устаревшие подтверждённые значения средствами существующей модели состояний. Отсутствие данных не равно нулю.
 - Добавляйте воспроизводимые поведенческие тесты для реальных границ, переходов и приоритетов. Не проверяйте текст исходников, случайную формулировку или повтор данных из мока.
 - Запускайте затронутые тесты и само приложение. Снимайте только его окна, а не рабочий стол или экран чужого аккаунта.
-- Обновляйте все три версии README и журнал изменений по результатам наблюдавшихся проверок. Сохраняйте лицензии и сведения об авторстве.
+- Обновляйте все три версии README и журнал изменений по наблюдавшимся данным. Сохраняйте лицензии и сведения об авторстве. Автоматизация релиза должна сначала публиковать архив версии и только потом продвигать подписанный appcast.
 - Делайте commit и push только с разрешения владельца репозитория. Публикация исходников не разрешает выпуск бинарных версий, развёртывание, операции с аккаунтами или платежи. Не включайте результаты сборки и пользовательские секреты.
 
 Команда просмотра журналов приведена выше. Исследуйте только диагностику приложения; перед передачей удаляйте чувствительные данные.
@@ -77,7 +77,7 @@ Inspect app-owned logs only; redact sensitive data before sharing:
 
 ### 凭据和后端接入
 
-`Sources/App/AppDelegate.swift` 负责启动。保留原生小组件架构。不要启用第三方账号发现、代理日志索引、手机连接服务、凭据迁移或更新源。
+`Sources/App/AppDelegate.swift` 负责启动。保留原生小组件架构。不要启用第三方账号发现、代理日志索引、手机连接服务或凭据迁移。Sparkle 更新器仅使用签名的公开更新源，并且只在用户确认后安装。
 
 验证时不要读取其他应用的凭据，也不要使用其他人的账号。不要输出令牌、cookies、密钥或个人信息。账号会话令牌和推理 API 密钥必须分开。桌面会话凭据只能放在 macOS Keychain（`WikiVibeSessionStore`）中，绝不放进 `UserDefaults`、日志或 Web 视图存储。打开浏览器不代表登录成功——只有服务器接受的授权码交换才算。
 
@@ -91,7 +91,7 @@ Inspect app-owned logs only; redact sensitive data before sharing:
 - 使用现有状态模型区分无数据、接入不支持、登录错误和已过期的确认数据。无数据不是零。
 - 为真实边界、状态转换和优先级写可重复的行为测试，不要测试源代码文本、偶然的措辞或模拟数据的原样返回。
 - 运行受影响的测试和应用本身。截图只包含应用自己的窗口，不要截整个桌面或其他账号页面。
-- 按实际验证结果更新三份 README 和变更记录，保留许可证与作者信息。
+- 按实际验证结果更新三份 README 和变更记录，保留许可证与作者信息。发布自动化必须先发布版本归档，再推进签名 appcast。
 - 只有仓库所有者授权后才能 commit 和 push。发布源码不等于获准发布二进制、部署、操作账号或付款。不要提交构建产物或用户凭据。
 
 日志查看命令见上文。只检查本应用的诊断信息，分享前先去掉敏感内容。

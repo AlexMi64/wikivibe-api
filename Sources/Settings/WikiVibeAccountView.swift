@@ -58,6 +58,7 @@ struct WikiVibeAccountView: View {
     @ObservedObject var auth: WikiVibeAuthCoordinator
     @ObservedObject var preferences: Preferences
     @ObservedObject var performance: WikiVibePerformanceStore
+    @ObservedObject private var updater: Updater
     @Environment(\.colorScheme) private var colorScheme
     @StateObject private var keys: WikiVibeKeysController
     @State private var browserOpenFailed = false
@@ -65,11 +66,12 @@ struct WikiVibeAccountView: View {
 
     @MainActor
     init(auth: WikiVibeAuthCoordinator, preferences: Preferences, performance: WikiVibePerformanceStore,
-         keys: WikiVibeKeysController? = nil) {
+         keys: WikiVibeKeysController? = nil, updater: Updater? = nil) {
         self.auth = auth
         self.preferences = preferences
         self.performance = performance
         _keys = StateObject(wrappedValue: keys ?? WikiVibeKeysController())
+        self.updater = updater ?? Updater()
     }
 
     private var layout: AccountWindowLayout { preferences.accountWindowLayout }
@@ -87,6 +89,7 @@ struct WikiVibeAccountView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: layout.density.spacing) {
                     header(compact: width < 500)
+                    WikiVibeUpdatesView(updater: updater)
                     if layout.visibleCards.isEmpty {
                         Text(L10n.t("All cards are hidden. Use Customize to show them again."))
                             .foregroundStyle(.secondary)

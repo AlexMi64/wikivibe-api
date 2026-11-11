@@ -29,6 +29,38 @@ final class UpdaterOutcomeTests: XCTestCase {
                        .upToDate(Date(timeIntervalSince1970: 1)))
     }
 
+    func testInstallationRequiresAnExplicitChoiceAndCannotBeStartedTwice() throws {
+        let updater = Updater()
+        let item = try XCTUnwrap(SUAppcastItem(dictionary: [
+            "sparkle:version": "26", "sparkle:shortVersionString": "0.1.0",
+            "enclosure": ["url": "https://example.invalid/WikiVibe.zip", "length": "128", "type": "application/octet-stream"]
+        ]))
+        var choices: [SPUUserUpdateChoice] = []
+        updater.offer(item) { choices.append($0) }
+        XCTAssertTrue(choices.isEmpty)
+        XCTAssertEqual(updater.pending, "0.1.0 (26)")
+        updater.respond(.install)
+        updater.respond(.install)
+        XCTAssertEqual(choices, [.install])
+        XCTAssertEqual(updater.prompt?.phase, .downloading(nil))
+    }
+
+    func testLaterKeepsTheAvailableVersionWithoutStartingADownload() throws {
+        let updater = Updater()
+        let item = try XCTUnwrap(SUAppcastItem(dictionary: [
+            "sparkle:version": "26", "sparkle:shortVersionString": "0.1.0",
+            "enclosure": ["url": "https://example.invalid/WikiVibe.zip", "length": "128", "type": "application/octet-stream"]
+        ]))
+        var choices: [SPUUserUpdateChoice] = []
+        updater.offer(item) { choices.append($0) }
+        updater.respond(.later)
+        XCTAssertEqual(choices, [.dismiss])
+        XCTAssertNil(updater.prompt)
+        XCTAssertEqual(updater.pending, "0.1.0 (26)")
+        updater.respond(.install)
+        XCTAssertEqual(choices, [.dismiss])
+    }
+
     /// The line under an update offered in the notch is the appcast's HTML
     /// release notes read as plain text.
     func testReleaseNotesAreReadAsOnePlainLine() {

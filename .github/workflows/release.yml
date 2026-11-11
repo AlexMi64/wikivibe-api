@@ -1,0 +1,56 @@
+name: Signed macOS release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - project.yml
+      - .github/workflows/release.yml
+      - scripts/publish-update.py
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: signed-macos-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: github.ref == 'refs/heads/main' && github.repository == 'AlexMi64/wikivibe-api'
+    runs-on: macos-15
+    timeout-minutes: 60
+    env:
+      GH_TOKEN: ${{ github.token }}
+      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
+    steps:
+      - uses: actions/checkout@v4
+      - name: Publish only a new build number
+        id: plan
+        run: python3 scripts/publish-update.py plan
+      - name: Install XcodeGen
+        if: steps.plan.outputs.publish == 'true'
+        run: brew install xcodegen
+      - uses: actions/setup-node@v4
+        if: steps.plan.outputs.publish == 'true'
+        with:
+          node-version: '22'
+      - name: Test updater behavior and native adapters
+        if: steps.plan.outputs.build_required == 'true'
+        run: make test TEST_FLAGS='-only-testing:WikiVibeTests/UpdaterOutcomeTests -only-testing:WikiVibeTests/UpdateOutcomeTests'
+      - name: Build universal DMG
+        if: steps.plan.outputs.build_required == 'true'
+        run: |
+          mkdir -p build/updates
+          make dmg DMG=build/updates/WikiVibe-preview${{ steps.plan.outputs.build }}.dmg
+      - name: Resolve Sparkle tools when resuming publication
+        if: steps.plan.outputs.publish == 'true' && steps.plan.outputs.build_required != 'true'
+        run: |
+          make gen
+          xcodebuild -resolvePackageDependencies -project WikiVibe.xcodeproj -scheme WikiVibe -derivedDataPath build/DerivedData
+      - name: Sign, publish version, then advance appcast
+        if: steps.plan.outputs.publish == 'true'
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+        run: python3 scripts/publish-update.py publish

@@ -11,7 +11,7 @@ settings:
     SWIFT_VERSION: "5.0"
     SWIFT_STRICT_CONCURRENCY: minimal
     MARKETING_VERSION: "0.1.0"
-    CURRENT_PROJECT_VERSION: "24"
+    CURRENT_PROJECT_VERSION: "25"
     # Local builds remain unsigned until the product distribution identity is
     # supplied by the owner of the WikiVibe application bundle.
     CODE_SIGN_IDENTITY: "-"
@@ -28,7 +28,7 @@ packages:
     from: "2.102.0"
   Sparkle:
     url: https://github.com/sparkle-project/Sparkle
-    from: "2.6.0"
+    from: "2.9.6"
 
 targets:
   WikiVibe:
@@ -82,6 +82,15 @@ targets:
         # build settings keeps one place to bump.
         CFBundleShortVersionString: "$(MARKETING_VERSION)"
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        SUFeedURL: "https://github.com/AlexMi64/wikivibe-api/releases/download/update-feed/appcast.xml"
+        SUPublicEDKey: "u5yQiA/hiYjB6exJuAKuy+83AhAN3eg7LPWIIN+0E6c="
+        SURequireSignedFeed: true
+        SUVerifyUpdateBeforeExtraction: true
+        SUEnableAutomaticChecks: true
+        SUScheduledCheckInterval: 21600
+        SUAutomaticallyUpdate: false
+        SUAllowsAutomaticUpdates: false
+        SUEnableSystemProfiling: false
         # HTTP endpoints on Tailscale use shared address space. Keep the ATS
         # exception scoped to that range; other destinations retain defaults.
         NSAppTransportSecurity:
