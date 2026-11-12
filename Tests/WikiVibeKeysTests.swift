@@ -17,6 +17,7 @@ final class WikiVibeKeysTests: XCTestCase {
         client = URLSession(configuration: configuration)
         return WikiVibeKeysAPI(client: client)
     }
+
     func testContextPreferencesAreScopedAndPreviewChangesRequireConfirmation() async throws {
         let fixture = KeysAuthFixture(refreshStarted: nil)
         let auth = WikiVibeAuthCoordinator(api: fixture, store: KeysStore(fixture.initial))
@@ -30,11 +31,16 @@ final class WikiVibeKeysTests: XCTestCase {
         let home = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
         defer { defaults.removePersistentDomain(forName: suite); try? FileManager.default.removeItem(at: home) }
+        let storedContexts = "apiKeys.contextWindows.7.1.\(WikiVibeGateway.primary.rawValue)"
+        defaults.set(["gpt-6.1-sol": 1_050_000, "custom-model": 1_234_567], forKey: storedContexts)
         let controller = WikiVibeKeysController(api: service, service: WikiVibeAgentService(home: home), defaults: defaults)
         await controller.load(auth: auth)
         controller.selectedKeyID = 1
+        XCTAssertEqual(controller.contextWindows["gpt-6.1-sol"], 1_000_000)
+        XCTAssertEqual(controller.contextWindows["custom-model"], 1_234_567)
+        XCTAssertEqual((defaults.dictionary(forKey: storedContexts)?["gpt-6.1-sol"] as? Int), 1_000_000)
         await controller.loadModels(auth: auth)
-        controller.contextWindows = ["gpt-6.1-sol": 1_050_000, "glm-5.3": 250_000]
+        controller.contextWindows = ["gpt-6.1-sol": 1_500_000, "glm-5.3": 250_000]
         await controller.prepare(auth: auth)
         XCTAssertNotNil(controller.preview)
         controller.contextWindows["glm-5.3"] = 500_000
@@ -48,7 +54,7 @@ final class WikiVibeKeysTests: XCTestCase {
         controller.gateway = .alternative
         XCTAssertTrue(controller.contextWindows.isEmpty)
         controller.gateway = .primary
-        XCTAssertEqual(controller.contextWindows["gpt-6.1-sol"], 1_050_000)
+        XCTAssertEqual(controller.contextWindows["gpt-6.1-sol"], 1_500_000)
         controller.clear()
         await controller.load(auth: auth)
         controller.selectedKeyID = 1
@@ -354,6 +360,67 @@ final class WikiVibeKeysTests: XCTestCase {
         let provider = (parsed["provider"] as! [String: Any])["wikivibe"] as! [String: Any]
         XCTAssertEqual((provider["options"] as? [String: String])?["baseURL"], WikiVibeGateway.primary.rawValue)
     }
+    func testInstallConfigurationUsesChosenKeyAndDoesNotTouchUnselectedAgents() async throws {
+        try await exerciseInstallation(fails: false, changeSelection: false)
+    }
+
+    func testFailedInstallationDoesNotWriteAgentCredentials() async throws {
+        try await exerciseInstallation(fails: true, changeSelection: false)
+    }
+
+    func testChangingKeyDuringInstallationDiscardsOldConfiguration() async throws {
+        try await exerciseInstallation(fails: false, changeSelection: true)
+    }
+
+    private func exerciseInstallation(fails: Bool, changeSelection: Bool) async throws {
+        let fixture = KeysAuthFixture(refreshStarted: nil)
+        let auth = WikiVibeAuthCoordinator(api: fixture, store: KeysStore(fixture.initial))
+        await auth.restore(); auth.stopWalletPolling()
+        let api = api { request in
+            if request.url?.path == "/v1/models" {
+                XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer chosen-fixture-key")
+                return (200, #"{"data":[{"id":"chosen-model"},{"id":"ali/second-model"}]}"#)
+            }
+            return (200, #"{"code":0,"data":{"pages":1,"items":[{"id":1,"name":"first","key":"unused-fixture-key","status":"active"},{"id":2,"name":"chosen","key":"chosen-fixture-key","status":"active"}]}}"#)
+        }
+        let home = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+        let suite = "install-test-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite); try? FileManager.default.removeItem(at: home) }
+        let started = expectation(description: "installer started")
+        let installer = SuspendedInstaller(started: started, fails: fails)
+        let controller = WikiVibeKeysController(api: api, service: WikiVibeAgentService(home: home), defaults: defaults, installer: installer)
+        await controller.load(auth: auth)
+        controller.selectedKeyID = 2
+        controller.agents = [.codex, .claude]
+        await controller.prepare(auth: auth, installing: .pi)
+        XCTAssertNotNil(controller.preview)
+        let config = home.appendingPathComponent(".pi/agent/models.json")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: config.path))
+        let applying = Task { await controller.apply(auth: auth) }
+        await fulfillment(of: [started], timeout: 3)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: config.path))
+        if changeSelection { controller.selectedKeyID = 1 }
+        await installer.release()
+        await applying.value
+        if fails || changeSelection {
+            XCTAssertFalse(FileManager.default.fileExists(atPath: config.path))
+            XCTAssertNil(controller.result)
+            if fails { XCTAssertNotNil(controller.error) }
+        } else {
+            let parsed = try JSONSerialization.jsonObject(with: Data(contentsOf: config)) as! [String: Any]
+            let provider = (parsed["providers"] as! [String: Any])["wikivibe"] as! [String: Any]
+            XCTAssertEqual(provider["apiKey"] as? String, "chosen-fixture-key")
+            XCTAssertEqual(provider["baseUrl"] as? String, WikiVibeGateway.primary.rawValue)
+            XCTAssertEqual((provider["models"] as! [[String: Any]]).compactMap { $0["id"] as? String }, ["ali/second-model", "chosen-model"])
+            XCTAssertNotNil(controller.result)
+            XCTAssertEqual(try FileManager.default.attributesOfItem(atPath: config.path)[.posixPermissions] as? Int, 0o600)
+        }
+        for rel in [".codex/config.toml", ".claude/settings.json", ".factory/settings.json", ".qwen/settings.json"] {
+            XCTAssertFalse(FileManager.default.fileExists(atPath: home.appendingPathComponent(rel).path))
+        }
+    }
 }
 
 private final class KeysProtocol: URLProtocol, @unchecked Sendable {
@@ -422,4 +489,17 @@ private actor KeysFixture: WikiVibeKeysAPIInterface {
         if !suspend && accessToken == "initial-access" { throw WikiVibeKeysError.unauthorized }
         return []
     }
+}
+
+private actor SuspendedInstaller: WikiVibeAgentInstalling {
+    let started: XCTestExpectation
+    let fails: Bool
+    private var continuation: CheckedContinuation<Void, Never>?
+    init(started: XCTestExpectation, fails: Bool) { self.started = started; self.fails = fails }
+    nonisolated func executable(for agent: WikiVibeAgent) -> URL? { nil }
+    func install(_ agent: WikiVibeAgent) async throws {
+        await withCheckedContinuation { continuation = $0; started.fulfill() }
+        if fails { throw WikiVibeAgentInstallationError.failed }
+    }
+    func release() { continuation?.resume(); continuation = nil }
 }

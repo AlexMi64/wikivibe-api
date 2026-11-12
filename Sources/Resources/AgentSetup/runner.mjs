@@ -46,7 +46,7 @@ async function fingerprint(preview, request) {
 }
 async function run(request) {
   if (Number(process.versions.node.split('.')[0]) < 22) return { ok: false, error: 'nodeMissing' };
-  const allowedAgents = ['codex', 'omp', 'opencode', 'claude'];
+  const allowedAgents = ['codex', 'omp', 'opencode', 'claude', 'pi', 'qwen', 'droid'];
   if (!request || !Array.isArray(request.agentIds) || !request.agentIds.length || request.agentIds.some(id => !allowedAgents.includes(id))) throw new Error('Некорректный формат');
   if (!['preview', 'apply', 'previewRestore', 'restore'].includes(request.operation)) throw new Error('Некорректный формат');
   const restoring = ['previewRestore', 'restore'].includes(request.operation);

@@ -38,7 +38,7 @@ jobs:
           node-version: '22'
       - name: Test updater behavior and native adapters
         if: steps.plan.outputs.build_required == 'true'
-        run: make test TEST_FLAGS='-only-testing:WikiVibeTests/UpdaterOutcomeTests -only-testing:WikiVibeTests/UpdateOutcomeTests'
+        run: make test TEST_FLAGS='-only-testing:WikiVibeTests/UpdaterOutcomeTests -only-testing:WikiVibeTests/UpdateOutcomeTests -only-testing:WikiVibeTests/WikiVibeKeysTests'
       - name: Build universal DMG
         if: steps.plan.outputs.build_required == 'true'
         run: |

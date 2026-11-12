@@ -23,6 +23,9 @@ const AGENTS = [
   { id: 'codex', label: 'Codex', rel: '.codex/config.toml' },
   { id: 'opencode', label: 'OpenCode', rel: '.config/opencode/opencode.json' },
   { id: 'omp', label: 'oh-my-pi', rel: '.omp/agent/models.yml' },
+  { id: 'pi', label: 'Pi', rel: '.pi/agent/models.json' },
+  { id: 'qwen', label: 'Qwen Code', rel: '.qwen/settings.json' },
+  { id: 'droid', label: 'Droid', rel: '.factory/settings.json' },
 ];
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 const own = (object, key) => Object.hasOwn(object, key);
@@ -68,7 +71,7 @@ function imageConfiguration(value) {
 }
 // Retired Preview 6 resources are enumerated only for protected removal/restore.
 function imagePaths(agent) {
-  if (agent.id === 'omp') return [];
+  if (!['codex', 'claude', 'opencode'].includes(agent.id)) return [];
   const directory = path.dirname(agent.rel);
   return [`${directory}/wikivibe-images.mjs`, `${directory}/wikivibe-images.json`];
 }
@@ -628,6 +631,54 @@ function render(agent, rel, bytes, value, root, merge = false, providerId = 'wik
     return ompModels(text, value);
   }
   const config = parseJSON(bytes);
+  if (agent.id === 'pi') {
+    const providers = child(config, 'providers');
+    const existing = providers.wikivibe;
+    if (existing && (!object(existing) || !wikiRoute(existing.baseUrl))) fail('Pi: поставщик wikivibe уже существует с другим адресом.');
+    if (existing && !Array.isArray(existing.models ?? [])) fail('Pi: models должен быть массивом.');
+    providers.wikivibe = { ...existing, name: 'WikiVibe', baseUrl: value.baseUrl, apiKey: value.apiKey,
+      api: 'openai-completions', authHeader: true,
+      models: value.models.map(model => ({
+        ...existing?.models?.find(row => row.id === model.id),
+        id: model.id, name: displayModelID(model.id),
+        api: responseAPI(value, model) ? 'openai-responses' : 'openai-completions',
+        ...(model.contextWindow !== undefined ? { contextWindow: model.contextWindow } : {}),
+        ...(hasImageInput(model) ? { input: ['text', 'image'] } : {})
+      })) };
+    return json(config);
+  }
+  if (agent.id === 'qwen') {
+    const providers = child(config, 'modelProviders');
+    const protocols = child(config, 'providerProtocol');
+    if (own(protocols, 'wikivibe') && protocols.wikivibe !== 'openai') fail('Qwen Code: wikivibe использует другой протокол.');
+    if (own(providers, 'wikivibe') && (!Array.isArray(providers.wikivibe) || providers.wikivibe.some(row => !object(row) || !wikiRoute(row.baseUrl)))) fail('Qwen Code: поставщик wikivibe уже существует с другим адресом.');
+    const previous = providers.wikivibe ?? [];
+    child(config, 'env').WIKIVIBE_API_KEY = value.apiKey;
+    protocols.wikivibe = 'openai';
+    providers.wikivibe = value.models.map(model => {
+      const old = previous.find(row => row.id === model.id) ?? {};
+      return { ...old, id: model.id, name: displayModelID(model.id), baseUrl: value.baseUrl,
+        envKey: 'WIKIVIBE_API_KEY', wireApi: responseAPI(value, model) ? 'responses' : 'chat-completions',
+        ...(model.contextWindow !== undefined ? { generationConfig: { ...old.generationConfig, contextWindowSize: model.contextWindow } } : {}),
+        ...(isImageModel(model) ? { supportsImageGeneration: true, imageOnly: true } : {}) };
+    });
+    return json(config);
+  }
+  if (agent.id === 'droid') {
+    if (own(config, 'customModels') && (!Array.isArray(config.customModels) || config.customModels.some(row => !object(row)))) fail('Droid: customModels должен быть массивом моделей.');
+    const current = config.customModels ?? [];
+    const ours = current.filter(row => wikiRoute(row.baseUrl));
+    if (ours.some(row => own(row, 'apiKeyHelper'))) fail('Droid: apiKeyHelper конфликтует с выбранным ключом.');
+    config.customModels = [...current.filter(row => !wikiRoute(row.baseUrl)), ...value.models.map(model => ({
+      ...ours.find(row => row.model === model.id),
+      model: model.id, displayName: `WikiVibe · ${displayModelID(model.id)}`,
+      baseUrl: value.baseUrl, apiKey: value.apiKey,
+      provider: responseAPI(value, model) ? 'openai' : 'generic-chat-completion-api',
+      ...(model.contextWindow !== undefined ? { maxContextLimit: model.contextWindow } : {}),
+      noImageSupport: !hasImageInput(model)
+    }))];
+    return json(config);
+  }
   switch (agent.id) {
     case 'claude': {
       const env = child(config, 'env');

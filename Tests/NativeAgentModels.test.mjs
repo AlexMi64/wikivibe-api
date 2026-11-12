@@ -298,13 +298,13 @@ test('context choices stay model-local, preserve output limits and restore the o
     npm: '@ai-sdk/openai-compatible', options: { baseURL: value.baseUrl, apiKey: value.apiKey },
     models: { 'gpt-6.1-sol': { limit: { context: 128000, output: 8192 } } }
   } } }));
-  const input = { ...value, models: [{ id: 'gpt-6.1-sol', contextWindow: 1_050_000 }, { id: 'glm-5.3', contextWindow: 3_000_000 }] };
+  const input = { ...value, models: [{ id: 'gpt-6.1-sol', contextWindow: 1_500_000 }, { id: 'glm-5.3', contextWindow: 3_000_000 }] };
   await apply(home, ['codex', 'opencode', 'omp'], input);
   const oc = (await readJSON(home, '.config/opencode/opencode.json')).provider.wikivibe.models;
-  assert.deepEqual(oc['gpt-6.1-sol'].limit, { context: 1_050_000, output: 8192 });
+  assert.deepEqual(oc['gpt-6.1-sol'].limit, { context: 1_500_000, output: 8192 });
   assert.equal(oc['glm-5.3'].limit.context, 3_000_000);
   const codex = await readJSON(home, '.codex/wikivibe-models.json');
-  assert.equal(codex.models.find(row => row.slug === 'gpt-6.1-sol').context_window, 1_050_000);
+  assert.equal(codex.models.find(row => row.slug === 'gpt-6.1-sol').context_window, 1_500_000);
   assert.equal(codex.models.find(row => row.slug === 'glm-5.3').context_window, 3_000_000);
   const omp = parseDocument(await fs.readFile(path.join(home, '.omp/agent/models.yml'), 'utf8')).toJS();
   assert.equal(omp.providers.wikivibe.models.find(row => row.id === 'glm-5.3').contextWindow, 3_000_000);
@@ -335,4 +335,61 @@ test('deeply nested YAML is refused without replacing the agent configuration', 
   assert.equal(result.failures[0]?.agentId, 'omp');
   assert.deepEqual(result.applied, []);
   assert.equal(await fs.readFile(path.join(home, '.omp/agent/models.yml'), 'utf8'), source);
+});
+
+test('Pi, Qwen and Droid receive only the selected key catalog and restore byte-exactly', async t => {
+  const home = await homeFor(t);
+  const originals = {
+    '.pi/agent/models.json': JSON.stringify({ providers: { other: { apiKey: 'other-key', models: [{ id: 'keep' }] } } }),
+    '.qwen/settings.json': JSON.stringify({ env: { OTHER: 'keep' }, modelProviders: { openai: [{ id: 'keep', baseUrl: 'https://example.invalid/v1' }] } }),
+    '.factory/settings.json': JSON.stringify({ customModels: [{ model: 'keep', baseUrl: 'https://example.invalid/v1', apiKey: 'other-key', provider: 'openai' }] })
+  };
+  for (const [rel, text] of Object.entries(originals)) await put(home, rel, text);
+  const input = { ...value, apiKey: 'chosen-fixture-key', protocols: ['openai_responses', 'openai_chat_completions'],
+    models: [{ id: 'gpt-6.1-sol', contextWindow: 1_500_000 }, { id: 'ali/qwen3.8-max' }] };
+  await apply(home, ['pi', 'qwen', 'droid'], input);
+  const pi = (await readJSON(home, '.pi/agent/models.json')).providers;
+  assert.equal(pi.other.apiKey, 'other-key');
+  assert.equal(pi.wikivibe.apiKey, input.apiKey);
+  assert.equal(pi.wikivibe.baseUrl, input.baseUrl);
+  assert.deepEqual(pi.wikivibe.models.map(m => m.id), input.models.map(m => m.id));
+  assert.equal(pi.wikivibe.models[0].contextWindow, 1_500_000);
+  assert.equal(pi.wikivibe.models[0].api, 'openai-responses');
+  const qwen = await readJSON(home, '.qwen/settings.json');
+  assert.equal(qwen.env.WIKIVIBE_API_KEY, input.apiKey);
+  assert.equal(qwen.env.OTHER, 'keep');
+  assert.equal(qwen.providerProtocol.wikivibe, 'openai');
+  assert.deepEqual(qwen.modelProviders.wikivibe.map(m => m.id), input.models.map(m => m.id));
+  assert.equal(qwen.modelProviders.wikivibe[0].wireApi, 'responses');
+  assert.equal(qwen.modelProviders.wikivibe[1].wireApi, 'chat-completions');
+  assert.equal(qwen.modelProviders.openai[0].id, 'keep');
+  const droid = (await readJSON(home, '.factory/settings.json')).customModels;
+  assert.equal(droid[0].apiKey, 'other-key');
+  assert.deepEqual(droid.slice(1).map(m => m.model), input.models.map(m => m.id));
+  assert.ok(droid.slice(1).every(m => m.apiKey === input.apiKey && m.baseUrl === input.baseUrl));
+  assert.equal(droid[1].provider, 'openai');
+  assert.equal(droid[2].provider, 'generic-chat-completion-api');
+  assert.equal(droid[1].maxContextLimit, 1_500_000);
+  for (const rel of ['.codex/config.toml', '.claude/settings.json', '.config/opencode/opencode.json', '.omp/agent/models.yml']) {
+    await assert.rejects(fs.stat(path.join(home, rel)), { code: 'ENOENT' });
+  }
+  await apply(home, ['pi', 'qwen', 'droid'], { ...input, apiKey: 'rotated-chosen-key', models: [input.models[1]] });
+  assert.deepEqual((await readJSON(home, '.pi/agent/models.json')).providers.wikivibe.models.map(m => m.id), [input.models[1].id]);
+  assert.equal((await readJSON(home, '.qwen/settings.json')).env.WIKIVIBE_API_KEY, 'rotated-chosen-key');
+  assert.equal((await readJSON(home, '.factory/settings.json')).customModels[1].apiKey, 'rotated-chosen-key');
+  assert.deepEqual((await restoreAgents(['pi', 'qwen', 'droid'], { home })).failures, []);
+  for (const [rel, text] of Object.entries(originals)) assert.equal(await fs.readFile(path.join(home, rel), 'utf8'), text);
+});
+
+test('foreign Pi and Qwen providers are refused and unselected configs stay untouched', async t => {
+  const home = await homeFor(t);
+  const pi = JSON.stringify({ providers: { wikivibe: { baseUrl: 'https://example.invalid/v1', apiKey: 'keep' } } });
+  const qwen = JSON.stringify({ modelProviders: { wikivibe: [{ id: 'keep', baseUrl: 'https://example.invalid/v1' }] } });
+  await put(home, '.pi/agent/models.json', pi);
+  await put(home, '.qwen/settings.json', qwen);
+  const result = await applyAgents(['pi', 'qwen'], value, { home });
+  assert.deepEqual(new Set(result.failures.map(row => row.agentId)), new Set(['pi', 'qwen']));
+  assert.deepEqual(result.applied, []);
+  assert.equal(await fs.readFile(path.join(home, '.pi/agent/models.json'), 'utf8'), pi);
+  assert.equal(await fs.readFile(path.join(home, '.qwen/settings.json'), 'utf8'), qwen);
 });

@@ -17,7 +17,7 @@ WikiVibe — приложение для macOS с виджетом у края �
 - Восстановление сессии после перезапуска, обновление токена и выход.
 - Баланс аккаунта: обычный, бонусный и замороженный, в единице сервера. Обновляется раз в минуту, и раз в 15 секунд, пока открыто окно.
 - «Пополнить» в раскрываемой карточке виджета открывает `https://api.wikivibe.dev/purchase` в системном браузере. При необходимости сайт попросит отдельный вход; приложение не передаёт токены в URL и не создаёт платёж.
-- Карточка «API-ключи»: ключи авторизованного аккаунта, выбор адреса API и настройка Codex, oh-my-pi, OpenCode и Claude Code с предпросмотром и подтверждением.
+- Карточка «API-ключи»: ключи авторизованного аккаунта, выбор адреса API и настройка Codex, oh-my-pi, OpenCode, Claude Code, Pi, Qwen Code и Droid с предпросмотром и подтверждением. Отдельный блок устанавливает выбранного агента официальной командой и настраивает его с выбранным ключом и доступными моделями.
 - TPS моделей: в «Виджет и язык» выберите модели публичного каталога. **Виджет с балансом остаётся один**; TPS, TTFT и дата выбранных моделей показываются только в его всплывающей карточке при наведении. Длинный список прокручивается внутри карточки. TPS — средний `output_tokens / полное время запроса` за 24 часа, включая ожидание первого токена. Это публичный standard-трафик шлюза, не скорость вашего запроса. Reasoning включён только в объёме, сообщённом провайдером. Только выбранные модели опрашиваются последовательно раз в 5 минут, не чаще раза в минуту на модель; каталог кэшируется на час. Отсутствующие или устаревшие метрики — `—`. Запросы без авторизации и без генерации.
 
 Виджет показывает аккаунт, баланс и выбранную публичную статистику TPS моделей. Расходы аккаунта и его статистика использования не читаются. Кнопка «Открыть сайт» ведёт в панель `api.wikivibe.dev`, у которой своя сессия в браузере; вход в приложении её не создаёт, поэтому сайт может попросить пароль — это не сброс входа в приложении.
@@ -44,8 +44,13 @@ WikiVibe — приложение для macOS с виджетом у края �
 - **oh-my-pi:** `~/.omp/agent/models.yml` или `.yaml`; существующие фильтры в `config.yml`/`.yaml` расширяются только для WikiVibe, роли моделей сохраняются. Выбор модели: `/model`.
 - **OpenCode:** `~/.config/opencode/opencode.json` или `.jsonc`; другие поставщики, активная модель и комментарии вне изменяемого блока сохраняются. Выбирайте модель в меню приложения (`Cmd+'` на macOS). Существующие маршруты WikiVibe обновляются, их имена не превращаются в новые дубликаты.
 - **Claude Code:** `~/.claude/settings.json`; глобальные `ANTHROPIC_BASE_URL` и `ANTHROPIC_AUTH_TOKEN` заменяются, доступные модели добавляются в `modelPicker`. Это не отдельный поставщик; предупреждение показывается до записи. Для списка моделей нужна версия 2.1.242 или новее; выбор — `/model` в новой сессии.
+- **Pi:** `~/.pi/agent/models.json`; добавляется поставщик `wikivibe` с выбранным ключом и каталогом, прочие поставщики сохраняются. Выберите модель через `/model`.
+- **Qwen Code:** `~/.qwen/settings.json`; добавляются поставщик `wikivibe` и `env.WIKIVIBE_API_KEY`, прочие настройки сохраняются. Выберите модель в меню `/model`.
+- **Droid:** `~/.factory/settings.json`; обновляются только модели WikiVibe в `customModels`, прочие модели сохраняются. Выберите добавленную модель через `/model`.
 
-**Модели и изображения:** все ID каталога, включая `gpt-image-*`, передаются всем четырём агентам. Выбранный доступный image-ID Codex сохраняется при повторной настройке; каталог только из image-ID не заменяет существующую текстовую модель, provider или profile.
+В блоке установки нажмите «Установить и настроить…», проверьте команду, ключ, модели и файлы, затем подтвердите. Приложение запускает фиксированный официальный установщик без `sudo`; API-ключ и ID моделей в команду или окружение установщика не передаются. После успешной проверки `--version` приложение повторно проверяет файлы и записывает настройки только выбранному агенту. Если установщик изменил целевой файл, показывается новый preview и требуется ещё одно подтверждение. Восстановление — отдельная операция с preview и подтверждением. Уже установленные агенты повторно не скачиваются.
+
+**Модели и изображения:** все ID каталога, включая `gpt-image-*`, передаются выбранным совместимым агентам. Невыбранные агенты не меняются. Выбранный доступный image-ID Codex сохраняется при повторной настройке; каталог только из image-ID не заменяет существующую текстовую модель, provider или profile. Наличие ID не подтверждает поддержку генерации клиентом.
 
 В интерфейсах агентов отображаемое имя модели сокращается до части после префикса поставщика: например, `ali/qwen3.8-max` показывается как `qwen3.8-max`. Полный ID сохраняется в маршрутах, каталогах и значениях выбора, поэтому запросы используют исходный идентификатор.
 
@@ -73,7 +78,7 @@ WikiVibe — приложение для macOS с виджетом у края �
 
 В проверенной чистой сессии десктопного Codex 26.1007.71326 собственный фильтр интерфейса скрывал `none`, `minimal` и `max`, хотя нативный `model/list` возвращал полный каталог. Мышью проверены DeepSeek `low`, Gemini 3.8 `high`, Flash-Lite Preview `medium` и обе GLM `high`; сохранение подтверждено через `config/read`. Адаптер не подменяет скрытые уровни GPT-алиасами и не изменяет файлы Codex. Доступность всех положений зависит также от настроек возможностей клиента, а не только от каталога.
 
-Настройка требует локальный **Node.js 22+**: `/opt/homebrew/bin/node`, `/usr/local/bin/node` или унаследованный приложением `PATH`. Адаптеры и парсеры поставляются с приложением, ничего не скачивается при применении. Без Node.js доступен список ключей, но не запись настроек. Наличие самих агентов не проверяется. Нестандартные домашние папки агентов, настройки проекта, переменные окружения и управляемые политики могут переопределять эти стандартные файлы; SSH и WSL не настраиваются.
+Настройка требует локальный **Node.js 22+**: `/opt/homebrew/bin/node`, `/usr/local/bin/node` или унаследованный приложением `PATH`. Адаптеры и парсеры поставляются с приложением, ничего не скачивается при применении конфигурации. Без Node.js доступен список ключей, но не запись настроек. Блок установки отдельно ищет исполняемый файл и проверяет `--version` до записи; он скачивает стороннюю программу только после подтверждения. Нестандартные домашние папки агентов, настройки проекта, переменные окружения и управляемые политики могут переопределять стандартные файлы; SSH и WSL не настраиваются.
 
 Запись начинается только после «Подтвердить и записать файлы». Ключ записывается **открытым текстом**; файлы имеют права `0600`. Копии исходных файлов лежат рядом в `.wikivibe-gateway-backups` с правами `0700` на папку и `0600` на файлы; они тоже могут содержать секреты. Каждый файл записывается отдельно: возможен частичный результат с перечнем изменённых файлов и ошибок. «Посмотреть восстановление из копий…» также требует подтверждения и не перезаписывает последующие пользовательские правки. Сложные/неоднозначные форматы, небезопасные ссылки и конфликты не заменяются автоматически. Каталог не доказывает поддержку tools, streaming, reasoning или генерации изображений.
 
@@ -182,7 +187,7 @@ WikiVibe is a macOS app with a screen-edge widget and a menu-bar entry.
 - Session restore across restarts, token refresh and sign-out.
 - The account balance: regular, bonus and on hold, in the server's own unit. Re-read every minute, and every 15 seconds while the window is open.
 - “Top up” in the widget's hover card opens `https://api.wikivibe.dev/purchase` in the system browser. The website may require its own sign-in; the app does not put tokens in the URL or create a payment.
-- API keys card: keys from the signed-in account, API address selection, and Codex, oh-my-pi, OpenCode and Claude Code setup with preview and confirmation.
+- API keys card: keys from the signed-in account, API address selection, and Codex, oh-my-pi, OpenCode, Claude Code, Pi, Qwen Code and Droid setup with preview and confirmation. It can also install a selected supported agent through its official installer, then rechecks the preview before writing the selected key and models to that agent only.
 - Model TPS: select public-catalog models under Widget and language. **There is only one balance widget**; selected models' TPS, TTFT and date appear only in its hover card, with internal scrolling for long lists. TPS is the mean per-request `output_tokens / full request duration` over 24 hours, including first-token waiting. This is public standard gateway traffic, not your request's speed. Reasoning is included only as reported by the provider. Only selected models are polled sequentially every 5 minutes, at most once a minute per model; the catalog is cached for an hour. Missing or stale metrics show `—`. No authentication or inference is used.
 
 The widget shows the account, balance and selected public model TPS statistics. Account spending and usage statistics are not read. “Open the website” leads to the `api.wikivibe.dev` panel, which keeps its own session in the browser; signing in here does not create it, so the site may ask for a password — that is not the app's session being lost.
@@ -207,10 +212,15 @@ Exact-ID official source links were checked on 2026-10-17. Gemini input limits a
 
 - **Codex:** after explicit confirmation, WikiVibe becomes the default provider in `~/.codex/config.toml`, which also loads `wikivibe-models.json`. An available current text model is retained; otherwise the first text model in the catalog is selected. The previous profile selection is cleared, not its definition. Restart desktop Codex and start a new chat to see the models in its menu. For the CLI, run ordinary `codex` and use `/model`; `-p wikivibe` is no longer needed. Requires `model_catalog_json` support. Reapplying removes the former CLI profile only if it is plugin-owned and unedited; restoration returns the original configuration. Existing chats and custom runtime homes are not reconfigured.
 - **oh-my-pi:** `~/.omp/agent/models.yml` or `.yaml`; existing `config.yml`/`.yaml` filters expand only for WikiVibe, and model roles stay intact. Choose with `/model`.
-- **OpenCode:** `~/.config/opencode/opencode.json` or `.jsonc`; other providers, the active model and comments outside the changed block stay intact. Choose a model in the app's menu (`Cmd+'` on macOS). Existing WikiVibe routes are updated without adding duplicate aliases.
+- **OpenCode:** `~/.config/opencode/opencode.json` or `.jsonc`; other providers, the active model and comments outside the changed block stay intact. Choose a model in the app's menu (`Cmd+'` on macOS). Existing WikiVibe routes are updated without duplicate aliases.
 - **Claude Code:** `~/.claude/settings.json`; replaces global `ANTHROPIC_BASE_URL` and `ANTHROPIC_AUTH_TOKEN` and adds available models to `modelPicker`. This is not a separate provider; the warning appears before writing. The picker requires 2.1.242 or newer; choose with `/model` in a new session.
+- **Pi:** `~/.pi/agent/models.json`; adds or replaces only the `wikivibe` provider and preserves other providers and existing per-model fields.
+- **Qwen Code:** `~/.qwen/settings.json`; adds or replaces only the `wikivibe` provider and its environment key, preserving unrelated settings.
+- **Droid:** `~/.factory/settings.json`; replaces only WikiVibe-owned `customModels`, preserving unrelated custom models.
 
-**Models and images:** every catalog ID, including `gpt-image-*`, is passed to all four agents. Reapplying preserves an available selected Codex image ID; an image-only catalog does not replace an existing text model, provider or profile.
+Choose **Install and configure…**, review the command, key, models and files, then confirm. WikiVibe runs the fixed official installer without `sudo` or the API key/model IDs in its command or environment. After `--version` succeeds, it rechecks files and configures only that agent. If installation changed a target file, a fresh preview requires another confirmation before writing. Already installed agents are not downloaded again. Restore remains a separate preview and confirmation action.
+
+**Models and images:** every catalog ID, including `gpt-image-*`, is passed to each selected compatible agent. Selected agents are the only agents changed; unselected agents and unrelated providers remain untouched. Reapplying preserves an available selected Codex image ID; an image-only catalog does not replace an existing text model, provider or profile.
 
 Agent interfaces shorten a model's displayed name to the portion after the provider prefix: for example, `ali/qwen3.8-max` appears as `qwen3.8-max`. The full ID remains in routes, catalogs and selection values, so requests use the original identifier.
 
@@ -238,7 +248,7 @@ Exact non-GPT IDs use provider-specific presets: [DeepSeek V4.1 Flash](https://a
 
 In the checked clean desktop Codex 26.1007.71326 session, the client's own UI filter hid `none`, `minimal`, and `max`, although native `model/list` returned the full catalog. Mouse selections of DeepSeek `low`, Gemini 3.8 `high`, Flash-Lite Preview `medium`, and both GLMs `high` were confirmed by `config/read`. The adapter does not substitute GPT aliases for hidden levels or modify Codex files. Visibility of every position also depends on the client's enabled capabilities, not just the catalog.
 
-Configuration requires local **Node.js 22+**, found at `/opt/homebrew/bin/node`, `/usr/local/bin/node`, or on the app's inherited `PATH`. Adapters and parsers ship with the app; applying does not download code. Without Node.js the key list remains available, but configuration writes are unavailable. Agent installation is not checked. Custom agent homes, project settings, environment variables and managed policies can override these standard files; SSH and WSL are not configured.
+Configuration requires local **Node.js 22+**, found at `/opt/homebrew/bin/node`, `/usr/local/bin/node`, or on the app's inherited `PATH`. Adapters and parsers ship with the app; configuration writes do not download code. Without Node.js the key list remains available, but configuration writes are unavailable. The installation panel separately detects executables and checks `--version` before writing; third-party software is downloaded only after confirmation. Custom agent homes, project settings, environment variables and managed policies can override these standard files; SSH and WSL are not configured.
 
 Only “Confirm and write files” starts a write. The key is stored **in plain text**, with file permissions `0600`. Original-file backups are stored beside the configuration in `.wikivibe-gateway-backups`, using directory permissions `0700` and file permissions `0600`; backups may also contain secrets. Each file is written separately, so a partial result lists changed files and failures. “Preview restoring agent backups…” also requires confirmation and refuses to overwrite later user edits. Complex/ambiguous formats, unsafe links and conflicts are not replaced automatically. The catalog does not prove tools, streaming, reasoning or image-generation support.
 
@@ -346,7 +356,7 @@ WikiVibe 是一款 macOS 应用，提供屏幕边缘小组件和菜单栏入口�
 - 重启后恢复会话、刷新令牌、退出登录。
 - 账号余额：普通、赠送和冻结，使用服务器自己的单位。每分钟刷新一次；窗口打开时每 15 秒刷新一次。
 - 小组件悬浮卡片中的“充值”会在系统浏览器中打开 `https://api.wikivibe.dev/purchase`。网站可能要求单独登录；应用不会在 URL 中传递令牌，也不会创建付款。
-- API 密钥卡片：读取已登录账号的密钥，选择 API 地址，为 Codex、oh-my-pi、OpenCode 和 Claude Code 配置密钥和模型，写入前预览并确认。
+- API 密钥卡片：读取已登录账号的密钥，选择 API 地址，为 Codex、oh-my-pi、OpenCode、Claude Code、Pi、Qwen Code 和 Droid 配置密钥与模型，写入前预览并确认。也可通过官方安装程序安装所选代理；安装后会重新检查预览，并只向该代理写入所选密钥和模型。
 - 模型 TPS：在“小组件与语言”中选择公开目录中的模型。**始终只有一个余额小组件**；所选模型的 TPS、TTFT 和日期仅在该小组件的悬浮卡片中显示，长列表可在卡片内滚动。TPS 是过去 24 小时每次请求的 `output_tokens / 完整请求时间` 的平均值，包含首令牌等待。这是网关的公开 standard 流量，而非当前请求速度。推理令牌以提供商报告为准。仅每 5 分钟依次查询所选模型，每个模型至少间隔一分钟；目录缓存一小时。缺失或过期指标显示 `—`。无需身份验证，也不执行生成。
 
 小组件显示账号、余额和所选模型的公开 TPS 统计。不读取账号支出或使用统计。“打开网站”跳转到 `api.wikivibe.dev` 面板，它在浏览器里有自己的会话；在这里登录不会创建那个会话，所以网站可能要求输入密码——这不是应用里的登录被清除。
@@ -373,8 +383,13 @@ WikiVibe 是一款 macOS 应用，提供屏幕边缘小组件和菜单栏入口�
 - **oh-my-pi：**使用 `~/.omp/agent/models.yml` 或 `.yaml`；仅为 WikiVibe 扩展现有 `config.yml`/`.yaml` 的筛选条件，保留模型角色。用 `/model` 选择。
 - **OpenCode：**使用 `~/.config/opencode/opencode.json` 或 `.jsonc`；保留其他提供商、当前模型和更改块之外的注释。在应用菜单中选择模型（macOS 为 `Cmd+'`）。更新现有 WikiVibe 路由，不添加重复别名。
 - **Claude Code：**使用 `~/.claude/settings.json`；替换全局 `ANTHROPIC_BASE_URL` 和 `ANTHROPIC_AUTH_TOKEN`，并在 `modelPicker` 添加可用模型。这不是独立提供商，写入前会显示警告。模型选择器需要 2.1.242 或更新版本；请在新会话中用 `/model` 选择。
+- **Pi：**使用 `~/.pi/agent/models.json`；只添加或替换 `wikivibe` 提供商，保留其他提供商和已有模型字段。
+- **Qwen Code：**使用 `~/.qwen/settings.json`；只添加或替换 `wikivibe` 提供商及其环境变量，保留无关设置。
+- **Droid：**使用 `~/.factory/settings.json`；只替换 WikiVibe 管理的 `customModels`，保留无关自定义模型。
 
-**模型与图像：**所有目录 ID（包括 `gpt-image-*`）都交给四个代理。重新配置保留 Codex 已选择且仍可用的图像 ID；只有图像 ID 的目录不会替换现有文本模型、提供商或 profile。
+选择“安装并配置…”，检查命令、密钥、模型与文件后确认。WikiVibe 运行固定官方安装命令，不使用 `sudo`，也不在命令或环境中传递 API 密钥和模型 ID。通过 `--version` 验证后重新检查文件，只配置所选代理。如果安装改变了目标文件，新预览需再次确认才会写入。已安装代理不会重复下载；恢复仍是单独的预览与确认操作。
+
+**模型与图像：**每个目录 ID（包括 `gpt-image-*`）只传给所选且兼容的代理。只修改所选代理；未选代理和无关提供商保持不变。重新配置保留 Codex 已选择且仍可用的图像 ID；只有图像 ID 的目录不会替换现有文本模型、提供商或 profile。
 
 代理界面会将模型显示名称缩短为提供商前缀之后的部分，例如将 `ali/qwen3.8-max` 显示为 `qwen3.8-max`。完整 ID 仍保留在路由、目录和选择值中，因此请求使用原始标识符。
 
@@ -402,7 +417,7 @@ WikiVibe 是一款 macOS 应用，提供屏幕边缘小组件和菜单栏入口�
 
 在干净的桌面 Codex 26.1007.71326 会话中，客户端自身的界面筛选隐藏了 `none`、`minimal` 和 `max`，但原生 `model/list` 返回完整目录。已用鼠标选择 DeepSeek `low`、Gemini 3.8 `high`、Flash-Lite Preview `medium` 和两款 GLM 的 `high`，并通过 `config/read` 确认保存。适配器不会用 GPT 别名替代隐藏级别，也不会修改 Codex 文件。能否显示全部位置还取决于客户端启用的功能，而不只是模型目录。
 
-配置需要本机 **Node.js 22+**，应用从 `/opt/homebrew/bin/node`、`/usr/local/bin/node` 或继承的 `PATH` 查找。适配器与解析器随应用提供，应用配置时不下载代码。没有 Node.js 仍可查看密钥，但无法写入代理配置。不检查代理是否已安装。自定义代理目录、项目设置、环境变量和托管策略可能覆盖标准文件；不配置 SSH 或 WSL。
+配置需要本机 **Node.js 22+**，应用从 `/opt/homebrew/bin/node`、`/usr/local/bin/node` 或继承的 `PATH` 查找。适配器与解析器随应用提供，写入配置时不下载代码。没有 Node.js 仍可查看密钥，但无法写入代理配置。安装面板单独检测可执行文件并在写入前验证 `--version`；只在确认后下载第三方软件。自定义代理目录、项目设置、环境变量和托管策略可能覆盖标准文件；不配置 SSH 或 WSL。
 
 只有“确认并写入文件”才会开始写入。密钥以**明文**保存，文件权限为 `0600`。原始文件备份保存在配置旁的 `.wikivibe-gateway-backups`，目录权限为 `0700`，文件权限为 `0600`；备份也可能包含机密。各文件分别写入，因此可能部分成功，结果会列出已更改文件和错误。“预览恢复代理备份…”同样需要确认，并拒绝覆盖之后的用户修改。复杂或有歧义的格式、不安全链接及冲突不会被自动替换。模型目录不证明支持工具、流式响应、推理或图像生成。
 

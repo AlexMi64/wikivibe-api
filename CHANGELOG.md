@@ -1,8 +1,14 @@
 # Changelog
 
 ## 0.1.0 — unreleased
-### Preview 25 — one-click signed updates — 2026-11-11
+### Preview 26 — native agent installers and selected-key setup — 2026-11-12
+- Replaced the retired 1.05M context preset with 1.5M and migrated saved 1.05M values to 1M without losing custom budgets.
+- Added Pi, Qwen Code and Droid adapters. Only selected compatible agents receive the selected key and catalog; unselected agents and unrelated providers remain unchanged, with preview, fingerprint and byte-exact restore protection.
+- Added explicit official-agent installation: the fixed installer runs without administrator privileges or credentials, the executable is checked with `--version`, and configuration is re-previewed before the user confirms writing.
+- Verification: 19 Node adapter tests and 27 focused Swift tests passed with zero failures; the universal Release app and DMG contain arm64/x86_64, strict ad-hoc signatures, and a valid `hdiutil verify`. Release-bundle runner smoke passed for Pi, Qwen Code and Droid; DMG SHA-256 is recorded beside the asset.
 
+### Preview 25 — one-click signed updates — 2026-11-11
+- Reworked the model context budget editor into a compact one-line model/override/limit row; added the exact 1.5M preset while retaining custom and previously saved per-model values.
 - Connected the existing Sparkle updater to the running app lifecycle and Settings surface. The app checks a signed public feed every six hours, shows an available version in the widget and Settings, and installs only after the user chooses Update; automatic downloading and system profiling remain disabled.
 - Added Sparkle Ed25519 metadata, feed verification before extraction, an immutable versioned release step followed by an `update-feed` release, and GitHub Actions publication using only the `SPARKLE_PRIVATE_KEY` Actions secret. The private seed is never committed or embedded; only the public key is in the app.
 - Existing users need one manual install of an updater-enabled build. Later releases are one click and restart WikiVibe after installation.

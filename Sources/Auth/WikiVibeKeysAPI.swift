@@ -55,7 +55,7 @@ enum WikiVibeGateway: String, CaseIterable, Identifiable, Codable {
 }
 
 enum WikiVibeAgent: String, CaseIterable, Identifiable, Codable {
-    case codex, omp, opencode, claude
+    case codex, omp, opencode, claude, pi, qwen, droid
     var id: String { rawValue }
     var title: String {
         switch self {
@@ -63,6 +63,9 @@ enum WikiVibeAgent: String, CaseIterable, Identifiable, Codable {
         case .omp: return "oh-my-pi"
         case .opencode: return "OpenCode"
         case .claude: return "Claude Code"
+        case .pi: return "Pi"
+        case .qwen: return "Qwen Code"
+        case .droid: return "Droid"
         }
     }
     func supports(_ protocols: [String]?) -> Bool {
@@ -70,7 +73,7 @@ enum WikiVibeAgent: String, CaseIterable, Identifiable, Codable {
         switch self {
         case .codex: return protocols.contains("openai_responses")
         case .claude: return protocols.contains("anthropic_messages")
-        case .omp, .opencode:
+        case .omp, .opencode, .pi, .qwen, .droid:
             return protocols.contains("openai_responses") || protocols.contains("openai_chat_completions")
         }
     }
@@ -113,7 +116,6 @@ struct WikiVibeModel: Hashable, Sendable {
     }
     var documentedContextWindow: Int? {
         switch id {
-        case "gpt-5.5", "gpt-5.6-luna", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-6-astra", "gpt-6-luna", "gpt-6-sol", "gpt-6.1-sol": return 1_050_000
         case "gemini-3.8-flash", "gemini-3.1-flash-lite-preview": return 1_048_576
         case "glm-5.3", "glm-5.3-flash": return 1_000_000
         default: return nil

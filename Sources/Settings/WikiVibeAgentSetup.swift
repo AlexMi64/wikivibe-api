@@ -116,15 +116,21 @@ struct WikiVibeAgentService {
 
 @MainActor
 final class WikiVibeKeysController: ObservableObject {
-    static let contextWindowOptions: [Int?] = [nil, 128_000, 250_000, 500_000, 1_000_000, 1_050_000, 2_000_000]
+    static let contextWindowOptions: [Int?] = [nil, 128_000, 250_000, 500_000, 1_000_000, 1_500_000, 2_000_000]
     static func contextLabel(_ value: Int?) -> String {
         guard let value else { return L10n.t("No override") }
-        if value % 1_000_000 == 0 { return "\(value / 1_000_000)M" }
+        if value >= 1_000_000 {
+            let whole = value / 1_000_000
+            var fraction = String(value % 1_000_000 + 1_000_000).dropFirst()
+            while fraction.last == "0" { fraction = fraction.dropLast() }
+            return fraction.isEmpty ? "\(whole)M" : "\(whole).\(fraction)M"
+        }
         if value % 1_000 == 0 { return "\(value / 1_000)K" }
         return String(value)
     }
     @Published var contextWindows = [String: Int]() {
         didSet {
+            for id in contextWindows.keys where contextWindows[id] == 1_050_000 { contextWindows[id] = 1_000_000 }
             if let ownerID, let selectedKeyID {
                 defaults.set(contextWindows, forKey: contextStorageKey(ownerID: ownerID, keyID: selectedKeyID, gateway: gateway))
             }
@@ -139,6 +145,9 @@ final class WikiVibeKeysController: ObservableObject {
     @Published private(set) var preview: WikiVibeAgentReport?
     @Published private(set) var result: WikiVibeAgentReport?
     @Published private(set) var isRestoring = false
+    @Published private(set) var installationAgent: WikiVibeAgent?
+    @Published private(set) var installationMessage: String?
+    @Published private(set) var installedAgents: Set<WikiVibeAgent> = []
     @Published var selectedKeyID: Int? {
         didSet {
             invalidatePreview()
@@ -158,6 +167,7 @@ final class WikiVibeKeysController: ObservableObject {
     }
     private let api: WikiVibeKeysAPI
     private let service: WikiVibeAgentService
+    private let installer: any WikiVibeAgentInstalling
     private let defaults: UserDefaults
     private var ownerID: Int?
     private var generation = UUID()
@@ -174,13 +184,18 @@ final class WikiVibeKeysController: ObservableObject {
         guard let ownerID, let selectedKeyID,
               let saved = defaults.dictionary(forKey: contextStorageKey(ownerID: ownerID, keyID: selectedKeyID, gateway: gateway)) else { return [:] }
         return saved.reduce(into: [String: Int]()) { result, entry in
-            if let value = entry.value as? Int, value > 0 { result[entry.key] = value }
+            if let value = entry.value as? Int, value > 0 {
+                result[entry.key] = value == 1_050_000 ? 1_000_000 : value
+            }
         }
     }
-    init(api: WikiVibeKeysAPI = WikiVibeKeysAPI(), service: WikiVibeAgentService = WikiVibeAgentService(), defaults: UserDefaults = .standard) {
+    init(api: WikiVibeKeysAPI = WikiVibeKeysAPI(), service: WikiVibeAgentService = WikiVibeAgentService(), defaults: UserDefaults = .standard,
+         installer: (any WikiVibeAgentInstalling)? = nil) {
         self.api = api; self.service = service; self.defaults = defaults
+        self.installer = installer ?? WikiVibeAgentInstallationService(home: service.home)
         gateway = defaults.string(forKey: "apiKeys.gateway").flatMap(WikiVibeGateway.init(rawValue:)) ?? .primary
         agents = Set((defaults.stringArray(forKey: "apiKeys.agents") ?? WikiVibeAgent.allCases.map(\.rawValue)).compactMap(WikiVibeAgent.init(rawValue:)))
+        installedAgents = Set(WikiVibeAgent.allCases.filter { self.installer.executable(for: $0) != nil })
     }
     func clear() {
         generation = UUID()
@@ -188,13 +203,18 @@ final class WikiVibeKeysController: ObservableObject {
         selectedKeyID = nil
         contextWindows = [:]
         keys = []; models = []; pending = nil; preview = nil; result = nil
+        installationAgent = nil; installationMessage = nil
         hasLoaded = false; isBusy = false; error = nil
     }
     private func invalidatePreview() {
         generation = UUID(); isBusy = false
         preview = nil; pending = nil; models = []; result = nil; error = nil
+        installationAgent = nil; installationMessage = nil
     }
-    func cancelPreview() { preview = nil; pending = nil }
+    func cancelPreview() { preview = nil; pending = nil; installationAgent = nil }
+    func refreshInstallations() {
+        installedAgents = Set(WikiVibeAgent.allCases.filter { installer.executable(for: $0) != nil })
+    }
     func load(auth: WikiVibeAuthCoordinator) async {
         guard !isBusy else { return }
         guard let id = auth.account?.id else { clear(); return }
@@ -225,10 +245,11 @@ final class WikiVibeKeysController: ObservableObject {
         } catch is CancellationError { }
         catch { if generation == requestID { self.error = safeMessage(error) } }
     }
-    func prepare(auth: WikiVibeAuthCoordinator, restore: Bool = false) async {
+    func prepare(auth: WikiVibeAuthCoordinator, restore: Bool = false, installing agent: WikiVibeAgent? = nil) async {
         guard !isBusy, auth.account?.id == ownerID else { return }
         let requestID = generation
         isBusy = true; error = nil; result = nil; isRestoring = restore
+        installationAgent = agent; installationMessage = nil
         defer { if generation == requestID { isBusy = false } }
         do {
             let value: WikiVibeAgentRequest.Value?
@@ -236,17 +257,20 @@ final class WikiVibeKeysController: ObservableObject {
             if restore {
                 value = nil; chosen = WikiVibeAgent.allCases.filter { agents.contains($0) }
             } else {
-                guard let key = selectedKey, key.isUsable, let secret = key.key, !effectiveAgents.isEmpty else { throw WikiVibeKeysError.unusableKey }
+                let targets = agent.map { [$0] } ?? effectiveAgents
+                guard let key = selectedKey, key.isUsable, let secret = key.key, !targets.isEmpty,
+                      targets.allSatisfy({ $0.supports(key.protocols) }) else { throw WikiVibeKeysError.unusableKey }
                 let catalog = models.isEmpty ? try await api.models(gateway: gateway, key: secret) : models
                 try Task.checkCancellation()
                 guard generation == requestID, auth.account?.id == ownerID else { return }
-                models = catalog; chosen = effectiveAgents
+                models = catalog; chosen = targets
                 value = .init(apiKey: secret, baseUrl: gateway.rawValue, models: catalog.map { .init(id: $0.id, type: $0.type, protocols: $0.protocols, contextWindow: contextWindows[$0.id]) }, protocols: key.protocols)
             }
             guard !chosen.isEmpty else { throw WikiVibeKeysError.unusableKey }
             let request = WikiVibeAgentRequest(operation: restore ? "previewRestore" : "preview", agentIds: chosen.map(\.rawValue), value: value)
             let report = try await service.run(request)
             guard generation == requestID, auth.account?.id == ownerID else { return }
+            if agent != nil, report.failures?.isEmpty == false { throw WikiVibeKeysError.conflict }
             pending = request; preview = report
         } catch is CancellationError { }
         catch { if generation == requestID { self.error = safeMessage(error) } }
@@ -260,10 +284,33 @@ final class WikiVibeKeysController: ObservableObject {
         pending = nil; preview = nil; isBusy = true; error = nil
         defer { if generation == requestID { isBusy = false } }
         do {
+            if let agent = installationAgent {
+                installationMessage = L10n.t("Installing and verifying the agent…")
+                try await installer.install(agent)
+                guard generation == requestID, auth.account?.id == ownerID else { return }
+                var recheck = request
+                recheck.operation = "preview"; recheck.fingerprint = nil
+                let fresh = try await service.run(recheck)
+                guard generation == requestID, auth.account?.id == ownerID else { return }
+                guard fresh.failures?.isEmpty != false else { throw WikiVibeKeysError.conflict }
+                if fresh.fingerprint != request.fingerprint {
+                    pending = recheck; preview = fresh; installationAgent = nil
+                    installationMessage = nil; refreshInstallations()
+                    return
+                }
+                installationMessage = L10n.t("Configuring WikiVibe models and the selected key…")
+            }
             let report = try await service.run(request)
             guard generation == requestID else { return }
             result = report
-        } catch { if generation == requestID { self.error = safeMessage(error) } }
+            installationMessage = nil
+            refreshInstallations()
+        } catch {
+            installationMessage = nil
+            guard generation == requestID else { return }
+            refreshInstallations()
+            self.error = (error as? WikiVibeAgentInstallationError)?.localizedDescription ?? safeMessage(error)
+        }
     }
     private func safeMessage(_ error: Error) -> String {
         (error as? WikiVibeKeysError)?.localizedDescription ?? WikiVibeKeysError.network.localizedDescription

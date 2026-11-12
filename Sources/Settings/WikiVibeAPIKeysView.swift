@@ -12,6 +12,11 @@ struct WikiVibeAPIKeysView: View {
             } else {
                 keyControls
                 agentControls
+                WikiVibeAgentInstallView(auth: auth, model: model)
+                if let message = model.installationMessage {
+                    HStack { ProgressView().controlSize(.small); Text(message).font(.callout) }
+                        .accessibilityIdentifier("agents.install.progress")
+                }
                 if let error = model.error {
                     Text(error).font(.callout).foregroundStyle(.red).textSelection(.enabled)
                         .accessibilityIdentifier("keys.error")
@@ -128,6 +133,16 @@ struct WikiVibeAPIKeysView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     if !model.isRestoring {
                         Text(model.gateway.rawValue).font(.callout.monospaced())
+                        if let key = model.selectedKey {
+                            Text(key.displayName.isEmpty ? L10n.t("Key #\(key.id)") : key.displayName)
+                                .font(.callout.weight(.medium))
+                        }
+                        if let agent = model.installationAgent {
+                            Label(agent.title, systemImage: "terminal").font(.headline)
+                            Text(agent.installCommand).font(.caption.monospaced())
+                            Text(L10n.t("After installation succeeds, WikiVibe writes the selected key and models to this agent only. If the installer changes a configuration file, review the updated preview before writing."))
+                                .foregroundStyle(.orange)
+                        }
                         Text(L10n.t("Available models: \(model.models.count)"))
                         DisclosureGroup(L10n.t("View available models")) {
                             VStack(alignment: .leading, spacing: 4) {
@@ -146,21 +161,21 @@ struct WikiVibeAPIKeysView: View {
                     failures(report)
                     Divider()
                     Text(L10n.t("The API key will be stored as plain text in agent configuration files. Backups may contain previous keys and other secrets. Files use permissions 0600; backup folders use 0700."))
-                    Text(L10n.t("Only standard files in your local home folder are changed. Project settings, environment variables and custom agent homes can override them. Restart the agent after applying. Agent installation is not checked."))
+                    Text(L10n.t("Only standard files in your local home folder are changed. Project settings, environment variables and custom agent homes can override them. Restart the agent after applying."))
                     if model.isRestoring {
                         Text(L10n.t("Restore returns the original files, or removes files created by WikiVibe. Files edited after applying are not overwritten."))
                     } else {
                         Text(L10n.t("OpenCode: choose a model in its menu. oh-my-pi: /model; their current model selections and model roles are kept."))
-                        if model.effectiveAgents.contains(.codex) {
+                        if model.installationAgent == .codex || model.installationAgent == nil && model.effectiveAgents.contains(.codex) {
                             Text(L10n.t("Codex: when text models are available, this activates WikiVibe as the default provider, keeps an available text model or selects the first one, and clears the profile selection. An image-only catalog does not change the current text route. Restart Codex; restore returns the original configuration."))
                                 .foregroundStyle(.orange)
                         }
-                        if model.effectiveAgents.contains(.claude) {
+                        if model.installationAgent == .claude || model.installationAgent == nil && model.effectiveAgents.contains(.claude) {
                             Text(L10n.t("Claude Code: this replaces the global Anthropic gateway and authentication token. Choose an available model with /model in a new session. The model picker requires Claude Code 2.1.242 or newer."))
                                 .foregroundStyle(.orange)
                         }
                         Text(L10n.t("The model list proves access only to the catalog, not support for streaming, tools, reasoning or image generation."))
-                        Text(L10n.t("All catalog IDs are kept. Only the agents' native image features are used; WikiVibe installs no image MCP server or proxy. oh-my-pi: /models > Roles > IMAGE. Image output and reasoning support depend on the client and gateway. Setup never generates images."))
+                        Text(L10n.t("Image output and reasoning support depend on the client and gateway. Setup never generates images."))
                     }
                     Text(L10n.t("Each file is written separately. A failure can leave partial changes; review the result and use backups when necessary."))
                 }
@@ -171,7 +186,7 @@ struct WikiVibeAPIKeysView: View {
             HStack {
                 Button(L10n.t("Cancel")) { model.cancelPreview() }.keyboardShortcut(.cancelAction)
                 Spacer()
-                Button(model.isRestoring ? L10n.t("Confirm restore") : L10n.t("Confirm and write files")) {
+                Button(model.isRestoring ? L10n.t("Confirm restore") : model.installationAgent != nil ? L10n.t("Install and configure") : L10n.t("Confirm and write files")) {
                     Task { await model.apply(auth: auth) }
                 }
                 .buttonStyle(SettingsButtonStyle(kind: .prominent, dashboard: true))
@@ -224,52 +239,11 @@ struct WikiVibeModelContextsView: View {
             Text(L10n.t("Choose a local budget. No override restores the baseline for unchanged managed files; later manual context edits are kept. This does not increase server capacity."))
                 .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             ForEach(model.models, id: \.id) { item in
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(item.displayName).font(.caption.monospaced())
-                        .textSelection(.enabled)
-                    AetherSelectionMenu(L10n.t("Context window"), selection: Binding<Int>(
-                        get: { model.contextWindows[item.id] ?? -1 },
-                        set: { value in
-                            if value > 0 { model.contextWindows[item.id] = value }
-                            else { model.contextWindows.removeValue(forKey: item.id) }
-                        }
-                    ), options: [-1] + Array((Set(WikiVibeKeysController.contextWindowOptions.compactMap { $0 })
-                        .union(model.contextWindows[item.id].map { [$0] } ?? [])).sorted()), accent: .cyan,
-                    identifier: "keys.context.\(item.id)", title: { value in
-                        value > 0 ? WikiVibeKeysController.contextLabel(value) : WikiVibeKeysController.contextLabel(nil)
-                    })
-                    .disabled(model.isBusy)
-                    if let limit = model.contextWindows[item.id] {
-                        TextField(L10n.t("Custom tokens"), value: Binding<Int>(get: {
-                            model.contextWindows[item.id] ?? limit
-                        }, set: { value in
-                            if value > 0 && value <= 9_007_199_254_740_991 { model.contextWindows[item.id] = value }
-                        }), format: .number.grouping(.never))
-                        .textFieldStyle(.plain)
-                        .aetherControlSurface(accent: .cyan)
-                        .frame(maxWidth: 180)
-                        .accessibilityIdentifier("keys.context.custom.\(item.id)")
-                        .disabled(model.isBusy)
-                    }
-                    HStack(spacing: 6) {
-                        if let documented = item.documentedContextWindow {
-                            Text(item.id.hasPrefix("gemini-")
-                                ? L10n.t("Documented input limit: \(String(documented)) tokens")
-                                : L10n.t("Documented provider limit: \(WikiVibeKeysController.contextLabel(documented))"))
-                        } else {
-                            Text(L10n.t("No exact official limit found for this catalog ID."))
-                        }
-                        if let url = item.documentationURL { Link(L10n.t("Source"), destination: url) }
-                    }
-                    .font(.caption2).foregroundStyle(.secondary)
-                    if item.id == "gemini-3.1-flash-lite-preview" {
-                        Text(L10n.t("Google has shut down this preview. Gateway availability is not verified."))
-                            .font(.caption2).foregroundStyle(.orange)
-                    }
-                }
-                .padding(10)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
+                WikiVibeModelContextRow(item: item, contextWindow: Binding(
+                    get: { model.contextWindows[item.id] },
+                    set: { model.contextWindows[item.id] = $0 }
+                ))
+                .disabled(model.isBusy)
             }
             Text(L10n.t("Sources checked 2026-10-17. Provider limits do not confirm gateway capacity. Output and agent headroom reduce usable input."))
                 .font(.caption2).foregroundStyle(.secondary)
