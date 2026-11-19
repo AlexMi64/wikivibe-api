@@ -3,6 +3,7 @@ import { promises as fs, constants, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash, randomUUID } from 'node:crypto';
+import { isDeepStrictEqual } from 'node:util';
 import { parse as parseJSONC, modify, applyEdits } from './vendor/jsonc-parser/lib/esm/main.js';
 import { parseDocument } from './vendor/yaml/browser/index.js';
 
@@ -42,19 +43,28 @@ function preferences(value, secret = false) {
   if (secret && (typeof value.apiKey !== 'string' || !value.apiKey.trim() || value.apiKey.length > 4096 || /[\s\x00-\x1f\x7f$]/.test(value.apiKey) || value.apiKey.startsWith('!') || /^[A-Z_][A-Z0-9_]*$/.test(value.apiKey))) fail('API-ключ должен содержать само значение ключа, а не команду или имя переменной.');
 }
 function modelId(model) { return typeof model === 'string' ? model : model?.id; }
+const RESPONSES = 'openai_responses';
+const CHAT = 'openai_chat_completions';
+const ANTHROPIC = 'anthropic_messages';
+
+function allows(value, model, protocol) {
+  return (!Array.isArray(value.protocols) || value.protocols.includes(protocol))
+    && (!Array.isArray(model.protocols) || model.protocols.includes(protocol));
+}
+function compatible(agent, value, model) {
+  if (agent.id === 'codex') return allows(value, model, RESPONSES);
+  if (agent.id === 'claude') return allows(value, model, ANTHROPIC);
+  // These adapters use Responses for image generation, not the Images endpoint.
+  return allows(value, model, RESPONSES) || (!isImageModel(model) && allows(value, model, CHAT));
+}
 function responseAPI(value, model) {
-  const allowed = value.protocols;
-  const id = modelId(model);
-  const preferResponses = isImageModel(model) || id.startsWith('gpt-');
-  if (!Array.isArray(allowed)) return preferResponses;
-  if (preferResponses && allowed.includes('openai_responses')) return true;
-  if (allowed.includes('openai_chat_completions')) return false;
-  if (allowed.includes('openai_responses')) return true;
-  fail('API-ключ не разрешает протокол OpenAI для этого агента.');
+  const preferResponses = isImageModel(model) || displayModelID(model.id).startsWith('gpt-');
+  return allows(value, model, RESPONSES) && (preferResponses || !allows(value, model, CHAT));
 }
 function isImageModel(model) {
   const id = modelId(model);
-  return (typeof model === 'object' && model?.type?.toLowerCase() === 'image') || (typeof id === 'string' && id.startsWith('gpt-image-'));
+  if (typeof model?.type === 'string' && model.type.trim()) return model.type.toLowerCase().trim() === 'image';
+  return typeof id === 'string' && displayModelID(id).startsWith('gpt-image-');
 }
 // Documented image-input support, checked 2026-10-23. Unknown IDs stay text-only
 // rather than inheriting a capability the gateway catalog does not declare.
@@ -64,10 +74,9 @@ const VISION_MODELS = new Set([
   'gemini-3.8-flash', 'gemini-3.1-flash-lite-preview', 'gemini-4-argon',
   'glm-5.3-flash', 'gpt-image-2', 'gpt-image-2.5', 'kimi-k3.1-pro'
 ]);
-function hasImageInput(model) { return isImageModel(model) || VISION_MODELS.has(modelId(model)); }
+function hasImageInput(model) { return isImageModel(model) || VISION_MODELS.has(displayModelID(modelId(model))); }
 function imageConfiguration(value) {
-  return (!Array.isArray(value.protocols) || value.protocols.includes('openai_responses'))
-    && value.models.some(model => isImageModel(model));
+  return value.models.some(model => isImageModel(model) && allows(value, model, RESPONSES));
 }
 // Retired Preview 6 resources are enumerated only for protected removal/restore.
 function imagePaths(agent) {
@@ -190,15 +199,44 @@ function displayModelID(id) {
   return slash > 0 && slash < id.length - 1 ? id.slice(slash + 1) : id;
 }
 
+function openCodeMerge(config, routes, enabled) {
+  if (!enabled || routes.length < 2) return null;
+  const selectedRoute = typeof config.model === 'string' ? config.model.split('/')[0] : null;
+  const keep = routes.find(([id]) => id === selectedRoute) ?? routes.find(([id]) => id === 'wikivibe') ?? routes[0];
+  const remove = routes.filter(([id, entry]) => id !== keep[0]
+    && /^[\w-]+$/.test(id) && isDeepStrictEqual(entry, keep[1])).map(([id]) => id);
+  return remove.length ? { keep: keep[0], remove } : null;
+}
+
+function openCodeMergeForBytes(bytes, enabled) {
+  if (!bytes || !enabled) return null;
+  const config = parseOpenCode(bytes.toString('utf8'));
+  return openCodeMerge(config, Object.entries(config.provider ?? {}).filter(([, route]) => wikiRoute(route?.options?.baseURL)), enabled);
+}
+
 function openCodeConfig(text, value, agent, root, removeImages) {
   const config = parseOpenCode(text);
   const providers = child(config, 'provider');
   const existing = Object.entries(providers).filter(([, entry]) => wikiRoute(entry?.options?.baseURL));
   if (!existing.length && own(providers, 'wikivibe')) fail('OpenCode: wikivibe указывает на другой endpoint; файл не изменён.');
-  const routes = existing.length ? existing : [['wikivibe', undefined]];
+  const consolidation = openCodeMerge(config, existing, value.mergeOpenCodeRoutes);
+  const routes = (existing.length ? existing : [['wikivibe', undefined]])
+    .filter(([id]) => !consolidation?.remove.includes(id));
   let output = text || '{}\n';
   const formattingOptions = { insertSpaces: true, tabSize: 2, eol: text.includes('\r\n') ? '\r\n' : '\n' };
   const set = (keys, setting) => { output = applyEdits(output, modify(output, keys, setting, { formattingOptions })); };
+  if (consolidation) {
+    for (const id of consolidation.remove) set(['provider', id], undefined);
+    for (const field of ['model', 'small_model']) {
+      const ref = config[field];
+      if (typeof ref !== 'string') continue;
+      const slash = ref.indexOf('/');
+      if (consolidation.remove.includes(ref.slice(0, slash))) set([field], `${consolidation.keep}${ref.slice(slash)}`);
+    }
+    for (const field of ['enabled_providers', 'disabled_providers']) {
+      expandAllowlist(config, field, consolidation.remove, true);
+    }
+  }
   for (const [id, entry] of routes) {
     if (entry && !object(entry.models ?? {})) fail('OpenCode: models должен быть объектом.');
     const models = Object.fromEntries(value.models.map(model => {
@@ -362,7 +400,7 @@ function yamlList(text, key) {
   }
   return result;
 }
-function addYamlAllowlist(text, models, providerId = 'wikivibe') {
+function addYamlAllowlist(text, models, providerId, obsolete) {
   let next = text;
   for (const [key, values, remove] of [
     ['enabledModels', models.map(({ id }) => `${providerId}/${id}`), false],
@@ -371,13 +409,14 @@ function addYamlAllowlist(text, models, providerId = 'wikivibe') {
   ]) {
     const entries = yamlList(next, key);
     if (entries === null || (!remove && entries.length === 0)) continue;
-    const merged = remove ? entries.filter(item => !values.includes(item)) : [...entries, ...values.filter(item => !entries.includes(item))];
+    const kept = entries.filter(item => remove ? !values.includes(item) : key !== 'enabledModels' || !obsolete.has(item));
+    const merged = remove ? kept : [...kept, ...values.filter(item => !kept.includes(item))];
     if (JSON.stringify(merged) !== JSON.stringify(entries)) next = yamlSet(next, [key], [JSON.stringify(merged)]);
   }
   return next;
 }
-function ompConfig(text, value, merge = false, providerId = 'wikivibe') {
-  let next = addYamlAllowlist(text, value.models, providerId);
+function ompConfig(text, value, merge, providerId, obsolete) {
+  let next = addYamlAllowlist(text, value.models, providerId, obsolete);
   const image = imageConfiguration(value) ? value.models.find(model => isImageModel(model)) : undefined;
   if (!image || merge) return next;
   const config = parseDocument(next || '{}', { uniqueKeys: true });
@@ -560,7 +599,7 @@ const CODEX_REASONING = new Map([
 // level are narrowed to what it accepts.
 const OMP_EFFORTS = new Set(['minimal', 'low', 'medium', 'high', 'xhigh', 'max']);
 function ompThinking(id) {
-  const preset = CODEX_REASONING.get(id);
+  const preset = CODEX_REASONING.get(displayModelID(id));
   if (!preset) return null;
   const efforts = preset[1].filter(effort => OMP_EFFORTS.has(effort));
   if (!efforts.length) return null;
@@ -581,15 +620,16 @@ const CODEX_EFFORTS = [
 function codexCatalog(models) {
   return { models: models.map((model, priority) => {
     const id = model.id;
+    const capabilityID = displayModelID(id);
     const image = isImageModel(model);
     return {
-      slug: id, display_name: `WikiVibe · ${displayModelID(id)}`, description: id === 'gemini-3.1-flash-lite-preview'
+      slug: id, display_name: `WikiVibe · ${capabilityID}`, description: capabilityID === 'gemini-3.1-flash-lite-preview'
         ? 'WikiVibe; Google Preview снят с обслуживания, маршрут шлюза и reasoning не проверены.'
         : image ? 'Image model. Native generation depends on the client and gateway; image reasoning levels are not declared by the catalog.'
           : 'WikiVibe; совместимость Responses и инструментов не проверена.',
       context_window: model.contextWindow ?? null,
-      default_reasoning_level: CODEX_REASONING.get(id)?.[0] ?? null,
-      supported_reasoning_levels: CODEX_EFFORTS.filter(({ effort }) => CODEX_REASONING.get(id)?.[1].includes(effort)),
+      default_reasoning_level: CODEX_REASONING.get(capabilityID)?.[0] ?? null,
+      supported_reasoning_levels: CODEX_EFFORTS.filter(({ effort }) => CODEX_REASONING.get(capabilityID)?.[1].includes(effort)),
       shell_type: 'shell_command',
       visibility: 'list', supported_in_api: true, priority, availability_nux: null, upgrade: null,
       base_instructions: 'You are a coding assistant running in Codex. Follow the user request and repository instructions, use the available native tools to complete the task, preserve unrelated user changes, and report the changes and actual verification performed.',
@@ -600,7 +640,7 @@ function codexCatalog(models) {
     };
   }) };
 }
-function render(agent, rel, bytes, value, root, merge = false, providerId = 'wikivibe', removeImages = false) {
+function render(agent, rel, bytes, value, root, merge = false, providerId = 'wikivibe', removeImages = false, obsolete = new Set()) {
   const text = bytes?.toString('utf8') ?? '';
   if (agent.id === 'claude' && rel === '.claude.json') {
     const config = parseJSON(bytes);
@@ -627,7 +667,7 @@ function render(agent, rel, bytes, value, root, merge = false, providerId = 'wik
     return removeImages ? removeImageToml(configured, agent, root) : configured;
   }
   if (agent.id === 'omp') {
-    if (/\/config\.ya?ml$/.test(rel)) return ompConfig(text, value, merge, providerId);
+    if (/\/config\.ya?ml$/.test(rel)) return ompConfig(text, value, merge, providerId, obsolete);
     return ompModels(text, value);
   }
   const config = parseJSON(bytes);
@@ -690,6 +730,7 @@ function render(agent, rel, bytes, value, root, merge = false, providerId = 'wik
       if (options.some(row => value.models.some(model => model.id === row.model))) fail('Claude Code: модель уже существует в пользовательском modelPicker.');
       picker.options = [...options, ...value.models.map(({ id }) => ({ model: id, label: `WikiVibe · ${displayModelID(id)}` }))];
       picker.replaceBuiltInOptions = true;
+      if (obsolete.size && Array.isArray(config.availableModels)) config.availableModels = config.availableModels.filter(id => !obsolete.has(id));
       expandAllowlist(config, 'availableModels', value.models.map(({ id }) => id));
       env.ANTHROPIC_BASE_URL = value.baseUrl.slice(0, -3);
       env.ANTHROPIC_AUTH_TOKEN = value.apiKey;
@@ -775,6 +816,7 @@ async function readBackup(root, agent, rel, target) {
   if (!object(record) || record.version !== 1 || record.agentId !== agent.id || record.rel !== rel || !['active', 'pending', 'restoring'].includes(record.state) || !/^[a-f0-9]{64}$/.test(record.appliedHash) || !(record.original === null || object(record.original))) fail('Резервная копия не принадлежит этому адаптеру.');
   if (record.original !== null && (typeof record.original.base64 !== 'string' || !Number.isInteger(record.original.mode) || record.original.mode < 0 || record.original.mode > 0o777 || hash(Buffer.from(record.original.base64, 'base64')) !== record.original.hash)) fail('Резервная копия повреждена.');
   if (record.state === 'pending' && !/^[a-f0-9]{64}$/.test(record.nextHash)) fail('Резервная копия повреждена.');
+  if (record.managedAllowlist !== undefined && (!Array.isArray(record.managedAllowlist) || record.managedAllowlist.some(id => typeof id !== 'string'))) fail('Резервная копия повреждена.');
   return { location, saved, record };
 }
 function owned(current, record) {
@@ -805,12 +847,118 @@ async function nativePaths(root, agent) {
   if (await snapshot(root, path.join(root, '.omp/agent/models.json'))) fail('oh-my-pi: плагин не переносит настройки из устаревшего models.json; используйте штатный формат YAML.');
   return result;
 }
+// Inspect only model entries and the known selection fields. Never include config values in the report.
+function catalogState(agent, rel, bytes, providerId) {
+  const models = new Map(), selections = [];
+  if (!bytes) return { models, selections };
+  const put = (id, row, route = '') => {
+    if (typeof id !== 'string') return;
+    if (!models.has(id)) models.set(id, {});
+    Object.defineProperty(models.get(id), route, { value: row, enumerable: true, configurable: true });
+  };
+  const select = (ref, prefix = '') => {
+    if (typeof ref === 'string' && ref.startsWith(prefix)) selections.push([ref, ref.slice(prefix.length), prefix !== '']);
+  };
+  if (agent.id === 'omp') {
+    const config = parseDocument(bytes.toString('utf8')).toJS({ maxAliasCount: 0 }) ?? {};
+    if (/\/config\.ya?ml$/.test(rel)) {
+      for (const ref of [config.defaultModel, ...Object.values(config.modelRoles ?? {})]) select(ref, `${providerId}/`);
+    } else for (const [id, route] of Object.entries(config.providers ?? {})) {
+      if (wikiRoute(route?.baseUrl) && Array.isArray(route.models)) for (const row of route.models) put(row?.id, row, id);
+    }
+  } else if (agent.id === 'codex') {
+    if (rel.endsWith('wikivibe-models.json')) for (const row of parseJSON(bytes).models ?? []) put(row?.slug, row);
+    else if (rel === agent.rel) {
+      const top = bytes.toString('utf8').split(/^\s*\[/m, 1)[0];
+      const ref = /^\s*model\s*=\s*["']([^"'\r\n]+)["']/m.exec(top)?.[1];
+      select(ref);
+    }
+  } else if (rel === agent.rel || agent.id === 'opencode' && rel.endsWith('opencode.jsonc')) {
+    const c = agent.id === 'opencode' ? parseOpenCode(bytes.toString('utf8')) : parseJSON(bytes);
+    switch (agent.id) {
+      case 'opencode':
+        for (const [id, route] of Object.entries(c.provider ?? {})) {
+          if (!wikiRoute(route?.options?.baseURL)) continue;
+          for (const [model, row] of Object.entries(route.models ?? {})) put(model, row, id);
+          select(c.model, `${id}/`); select(c.small_model, `${id}/`);
+        }
+        break;
+      case 'claude':
+        for (const row of c.modelPicker?.options ?? []) if (row?.label?.startsWith?.('WikiVibe · ')) put(row.model, row);
+        select(c.model); select(c.env?.ANTHROPIC_MODEL);
+        break;
+      case 'pi':
+        for (const row of c.providers?.wikivibe?.models ?? []) put(row?.id, row);
+        break;
+      case 'qwen':
+        for (const row of c.modelProviders?.wikivibe ?? []) put(row?.id, row);
+        select(c.model?.name, 'wikivibe/');
+        break;
+      case 'droid':
+        for (const row of c.customModels ?? []) if (wikiRoute(row?.baseUrl)) {
+          const { apiKey, ...metadata } = row;
+          put(row.model, metadata);
+        }
+        break;
+    }
+  }
+  return { models, selections };
+}
+
+function catalogReport(agent, plans) {
+  const before = new Map(), after = new Map(), selected = [];
+  let consolidation;
+  for (const plan of plans) {
+    if (!plan.catalog) continue;
+    const { old, next } = plan.catalog;
+    for (const pair of old.models) before.set(...pair);
+    for (const pair of next.models) after.set(...pair);
+    selected.push(...old.selections);
+    consolidation ??= plan.consolidation;
+  }
+  return {
+    agentId: agent.id,
+    added: [...after.keys()].filter(id => !before.has(id)).sort(),
+    removed: [...before.keys()].filter(id => !after.has(id)).sort(),
+    changed: [...after.keys()].filter(id => before.has(id) && !isDeepStrictEqual(before.get(id), after.get(id))).sort(),
+    staleSelections: [...new Set(selected.filter(([, id, qualified]) => (qualified || before.has(id)) && !after.has(id)).map(([ref]) => ref))].sort(),
+    mergedRoutes: consolidation?.remove ?? [], keptRoute: consolidation?.keep
+  };
+}
+
+// Remove only entries attributable to WikiVibe, not original or later user entries.
+function managedAllowlist(agent, rel, providerId, current, original, baseline, backup, plans, nextModels) {
+  const omp = agent.id === 'omp' && /\/config\.ya?ml$/.test(rel);
+  if (!omp && !(agent.id === 'claude' && rel === agent.rel)) return { obsolete: new Set(), owned: [] };
+  const list = bytes => {
+    const entries = omp ? yamlList(bytes?.toString('utf8') ?? '', 'enabledModels') : parseJSON(bytes ?? null).availableModels;
+    if (entries != null && (!Array.isArray(entries) || entries.some(id => typeof id !== 'string'))) fail('Список разрешённых моделей должен состоять из строк.');
+    return entries;
+  };
+  const currentEntries = list(current) ?? [];
+  const userEntries = new Set(list(backup ? original : current) ?? []);
+  const oldModels = !backup ? undefined : omp ? plans.find(plan => /\/models\.ya?ml$/.test(plan.rel))?.catalog?.old.models
+    : catalogState(agent, rel, current, providerId).models;
+  const format = id => omp ? `${providerId}/${id}` : id;
+  const prior = new Set(backup?.record.managedAllowlist ?? [...(oldModels?.keys() ?? [])].map(format));
+  const next = new Set(nextModels.map(({ id }) => format(id)));
+  const source = list(baseline);
+  return {
+    obsolete: new Set(currentEntries.filter(id => prior.has(id) && !userEntries.has(id) && !next.has(id))),
+    owned: !Array.isArray(source) || (omp && !source.length) ? []
+      : [...next].filter(id => !userEntries.has(id) && (!source.includes(id) || prior.has(id)))
+  };
+}
+
 async function plans(root, agents, value, restore = false) {
   const result = [];
   const failures = [];
+  const catalogs = [];
   for (const agent of agents) {
     const agentPlans = [];
     try {
+      const agentValue = restore ? undefined : { ...value, models: value.models.filter(model => compatible(agent, value, model)) };
+      if (!restore && !agentValue.models.length) fail('Нет моделей, совместимых с протоколом агента.');
       // Restore looks at both supported YAML spellings, independent of which exists now.
       const rels = restore ? managedPaths(agent) : await nativePaths(root, agent);
       const scriptRel = imagePaths(agent)[0];
@@ -852,10 +1000,12 @@ async function plans(root, agents, value, restore = false) {
           continue;
         }
         const filters = agent.id === 'omp' && /\/config\.ya?ml$/.test(rel);
-        const baseline = backup && !merge ? backup.record.original === null ? null : Buffer.from(backup.record.original.base64, 'base64') : current?.bytes ?? null;
+        const original = backup?.record.original ? Buffer.from(backup.record.original.base64, 'base64') : null;
+        const useCurrentOpenCode = agent.id === 'opencode' && (agentValue.mergeOpenCodeRoutes || backup?.record.consolidatedRoutes === true);
+        const baseline = backup && !merge && !useCurrentOpenCode ? original : current?.bytes ?? null;
         if (filters) {
           const hasFilters = ['enabledModels', 'enabledProviders', 'disabledProviders'].some(key => yamlList(baseline?.toString('utf8') ?? '', key) !== null);
-          const hasImageRole = imageConfiguration(value);
+          const hasImageRole = imageConfiguration(agentValue);
           if (!hasFilters && !hasImageRole) { if (backup && !merge) agentPlans.push({ agent, rel, target, current, backup, cleanup: true }); continue; }
         }
         let providerId = 'wikivibe';
@@ -867,19 +1017,24 @@ async function plans(root, agents, value, restore = false) {
             if (route) providerId = route[0];
           }
         }
-        const bytes = Buffer.from(render(agent, rel, baseline, value, root, merge, providerId, Boolean(priorImages)));
+        const allowlist = managedAllowlist(agent, rel, providerId, current?.bytes, original, baseline, backup, agentPlans, agentValue.models);
+        const bytes = Buffer.from(render(agent, rel, baseline, agentValue, root, merge, providerId, Boolean(priorImages), allowlist.obsolete));
         const backupDir = path.dirname(backupPath(root, target));
         if (await directories(root, backupDir) && (await fs.lstat(backupDir)).mode % 512 !== 0o700) fail('Каталог резервных копий должен иметь права 0700.');
-        agentPlans.push({ agent, rel, target, current, backup, bytes, filters, merge });
+        const catalogFile = rel === agent.rel || filters || agent.id === 'codex' && rel.endsWith('wikivibe-models.json') || agent.id === 'opencode' && rel.endsWith('opencode.jsonc') || agent.id === 'omp' && /\/models\.ya?ml$/.test(rel);
+        const catalog = catalogFile ? { old: catalogState(agent, rel, current?.bytes, providerId), next: catalogState(agent, rel, bytes, providerId) } : null;
+        const consolidation = agent.id === 'opencode' && catalogFile ? openCodeMergeForBytes(baseline, agentValue.mergeOpenCodeRoutes) : null;
+        agentPlans.push({ agent, rel, target, current, backup, bytes, filters, merge, catalog, consolidation, allowlist });
       }
       result.push(...agentPlans);
+      if (!restore) catalogs.push(catalogReport(agent, agentPlans));
     } catch (error) {
       // An agent is planned as a whole: one blocked or malformed file keeps its
       // other files untouched, but never voids the rest of the selection.
       failures.push({ agentId: agent.id, message: error instanceof Error ? error.message : 'Операция не выполнена.' });
     }
   }
-  return { plans: result, failures };
+  return { plans: result, failures, catalogs };
 }
 
 async function restorePlan(root, plan) {
@@ -931,8 +1086,8 @@ export async function previewRestoreAgents(agentIds, { home = homedir() } = {}) 
 export async function previewAgents(agentIds, value, { home = homedir() } = {}) {
   const agents = selected(agentIds); preferences(value, true);
   const root = await homeRoot(home);
-  const { plans: changes, failures } = await plans(root, agents, { ...value, apiKey: value.apiKey ?? 'preview-redacted' });
-  return { changes: changes.map(plan => ({ agentId: plan.agent.id, path: plan.target, secretOnDisk: !plan.cleanup && !plan.filters && !plan.rel.endsWith('wikivibe-models.json') && !plan.rel.endsWith('wikivibe-images.mjs') && !plan.rel.endsWith('wikivibe-imagegen.mjs') && plan.rel !== IMAGE_SKILL })), failures };
+  const { plans: changes, failures, catalogs } = await plans(root, agents, value);
+  return { changes: changes.map(plan => ({ agentId: plan.agent.id, path: plan.target, secretOnDisk: !plan.cleanup && !plan.filters && !plan.rel.endsWith('wikivibe-models.json') && !plan.rel.endsWith('wikivibe-images.mjs') && !plan.rel.endsWith('wikivibe-imagegen.mjs') && plan.rel !== IMAGE_SKILL })), failures, catalogs };
 }
 export async function applyAgents(agentIds, value, { home = homedir() } = {}) {
   const agents = selected(agentIds); preferences(value, true);
@@ -951,6 +1106,8 @@ export async function applyAgents(agentIds, value, { home = homedir() } = {}) {
         // null is meaningful: reapplying must not turn an originally absent file
         // into an original containing the previously written secret.
         const record = { version: 1, agentId: plan.agent.id, rel: plan.rel, original: plan.backup ? plan.backup.record.original : original, state: 'pending', appliedHash: plan.backup?.record.appliedHash ?? plan.current?.hash ?? hash(Buffer.alloc(0)), nextHash: hash(plan.bytes) };
+        if (plan.consolidation || plan.backup?.record.consolidatedRoutes) record.consolidatedRoutes = true;
+        record.managedAllowlist = plan.allowlist.owned;
         if (plan.merge || plan.backup?.record.preserveEdits) record.preserveEdits = true;
         await replace(root, location, Buffer.from(json(record)), plan.backup?.saved ?? null);
         await replace(root, plan.target, plan.bytes, plan.current);
@@ -964,7 +1121,7 @@ export async function applyAgents(agentIds, value, { home = homedir() } = {}) {
       }
     }
     const appliedIds = new Set(applied.map(item => item.agentId));
-    return { applied, failures: blocked, outcomes: agents.filter(agent => appliedIds.has(agent.id) && !blocked.some(item => item.agentId === agent.id)).map(agent => ({ agentId: agent.id, modelCount: value.models.length })) };
+    return { applied, failures: blocked, outcomes: agents.filter(agent => appliedIds.has(agent.id) && !blocked.some(item => item.agentId === agent.id)).map(agent => ({ agentId: agent.id, modelCount: value.models.filter(model => compatible(agent, value, model)).length })) };
   });
 }
 export async function restoreAgents(agentIds, { home = homedir() } = {}) {

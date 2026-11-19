@@ -81,7 +81,7 @@ enum WikiVibeAgent: String, CaseIterable, Identifiable, Codable {
 
 enum WikiVibeKeysError: Error, LocalizedError {
     case notSignedIn, unauthorized, denied, keyDenied, network, unreadable, noModels, unusableKey
-    case nodeMissing, adapterMissing, setupFailed, conflict, invalidConfiguration, unsafePath, locked
+    case nodeMissing, adapterMissing, setupFailed, conflict, invalidConfiguration, unsafePath, locked, noCompatibleModels
     var errorDescription: String? {
         switch self {
         case .notSignedIn, .unauthorized: return L10n.t("Sign in again to load API keys.")
@@ -90,6 +90,7 @@ enum WikiVibeKeysError: Error, LocalizedError {
         case .network: return L10n.t("Could not reach WikiVibe. Try again when the connection is available.")
         case .unreadable: return L10n.t("WikiVibe returned an unreadable key or model list.")
         case .noModels: return L10n.t("This key has no available models at the selected API address.")
+        case .noCompatibleModels: return L10n.t("No catalog models support this agent’s protocol. Its configuration was not changed.")
         case .unusableKey: return L10n.t("Choose an active key with its complete value and a compatible agent.")
         case .nodeMissing: return L10n.t("Install Node.js 22 or newer to configure agents. API keys can still be viewed here.")
         case .adapterMissing: return L10n.t("The bundled agent configuration adapter could not be opened.")
@@ -115,14 +116,14 @@ struct WikiVibeModel: Hashable, Sendable {
         return String(id[id.index(after: slash)...])
     }
     var documentedContextWindow: Int? {
-        switch id {
+        switch displayName {
         case "gemini-3.8-flash", "gemini-3.1-flash-lite-preview": return 1_048_576
         case "glm-5.3", "glm-5.3-flash": return 1_000_000
         default: return nil
         }
     }
     var documentationURL: URL? {
-        switch id {
+        switch displayName {
         case "gpt-5.5": return URL(string: "https://developers.openai.com/api/docs/models/gpt-5.5")
         case "gpt-5.6-luna": return URL(string: "https://developers.openai.com/api/docs/models/gpt-5.6-luna")
         case "gpt-5.6-sol": return URL(string: "https://developers.openai.com/api/docs/models/gpt-5.6-sol")
@@ -162,7 +163,7 @@ final class WikiVibeKeysAPI: WikiVibeKeysAPIInterface, @unchecked Sendable {
     private struct Envelope<T: Decodable>: Decodable { let code: Int; let data: T? }
     private struct Page: Decodable { let items: [WikiVibeAccountKey]; let pages: Int }
     private struct Models: Decodable {
-        struct Item: Decodable { let id: String; let type: String?; let protocols: [String]? }
+        struct Item: Decodable { let id: String; let type: String?; let protocols: [String]?; let available: Bool? }
         let data: [Item]
     }
     func keys(accessToken: String) async throws -> [WikiVibeAccountKey] {
@@ -199,6 +200,7 @@ final class WikiVibeKeysAPI: WikiVibeKeysAPIInterface, @unchecked Sendable {
         for item in models.data {
             guard !item.id.isEmpty, item.id.count <= 256, !item.id.contains(key),
                   !item.id.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) }) else { throw WikiVibeKeysError.unreadable }
+            guard item.available != false else { continue }
             guard ids.insert(item.id).inserted else { continue }
             result.append(WikiVibeModel(id: item.id, type: item.type, protocols: item.protocols))
         }

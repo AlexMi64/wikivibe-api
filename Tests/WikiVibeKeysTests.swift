@@ -80,7 +80,7 @@ final class WikiVibeKeysTests: XCTestCase {
     func testCatalogDeduplicatesAndRefusesSecretEchoes() async throws {
         let service = api { request in
             XCTAssertEqual(request.url?.path, "/v1/models")
-            return (200, #"{"data":[{"id":"z-model"},{"id":"a-model","type":"image"},{"id":"z-model"}]}"#)
+            return (200, #"{"data":[{"id":"z-model"},{"id":"a-model","type":"image"},{"id":"z-model"},{"id":"retired","available":false}]}"#)
         }
         let models = try await service.models(gateway: .primary, key: "fixture-api-key")
         XCTAssertEqual(models.map(\.id), ["a-model", "z-model"])
@@ -181,6 +181,43 @@ final class WikiVibeKeysTests: XCTestCase {
         XCTAssertEqual(try String(contentsOf: config, encoding: .utf8), original)
         XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent(".claude/settings.json").path))
         XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent(".codex/config.toml").path))
+    }
+
+    func testAgentPreviewFetchesFreshCatalogAndComparesInstalledModels() async throws {
+        guard WikiVibeAgentService.nodeURL != nil else { throw XCTSkip("Node.js is not installed") }
+        let fixture = KeysAuthFixture(refreshStarted: nil)
+        let auth = WikiVibeAuthCoordinator(api: fixture, store: KeysStore(fixture.initial))
+        await auth.restore(); auth.stopWalletPolling()
+        let api = api { request in
+            if request.url?.path == "/v1/models" { return (200, #"{"data":[{"id":"old"},{"id":"keep"}]}"#) }
+            return (200, #"{"code":0,"data":{"pages":1,"items":[{"id":1,"name":"first","key":"fixture-safe-key","status":"active"}]}}"#)
+        }
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+        let suite = "catalog-test-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite); try? FileManager.default.removeItem(at: root) }
+        let controller = WikiVibeKeysController(api: api, service: WikiVibeAgentService(home: root), defaults: defaults)
+        await controller.load(auth: auth)
+        controller.selectedKeyID = 1
+        controller.agents = [.pi]
+        await controller.prepare(auth: auth)
+        await controller.apply(auth: auth)
+        XCTAssertEqual(controller.result?.failures?.count, 0)
+        let file = root.appendingPathComponent(".pi/agent/models.json")
+        let old = try Data(contentsOf: file)
+        KeysProtocol.handler = { _ in (200, #"{"data":[{"id":"keep","protocols":["openai_responses"]},{"id":"new"}]}"#) }
+        await controller.prepare(auth: auth)
+        let change = try XCTUnwrap(controller.preview?.catalogs?.first)
+        XCTAssertEqual(change.added, ["new"])
+        XCTAssertEqual(change.removed, ["old"])
+        XCTAssertEqual(change.changed, ["keep"])
+        XCTAssertEqual(try Data(contentsOf: file), old)
+        KeysProtocol.handler = { _ in (503, "unavailable") }
+        await controller.prepare(auth: auth)
+        XCTAssertNil(controller.preview)
+        await controller.apply(auth: auth)
+        XCTAssertEqual(try Data(contentsOf: file), old)
     }
     func testFilesChangedAfterPreviewAreNotWritten() async throws {
         guard WikiVibeAgentService.nodeURL != nil else { throw XCTSkip("Node.js is not installed") }

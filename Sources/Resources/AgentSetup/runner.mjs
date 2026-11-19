@@ -6,6 +6,7 @@ import { createHash } from 'node:crypto';
 // metadata response. Never return raw exceptions or configuration contents.
 function reason(error) {
   const text = String(error?.message ?? error ?? '');
+  if (text === 'Нет моделей, совместимых с протоколом агента.') return 'noCompatibleModels';
   if (/блокировки|Другая операция/.test(text)) return 'locked';
   if (/Небезопас|права|прав каталог|символическ|владел/.test(text)) return 'unsafePath';
   if (/конфликт|Конфликт|изменил|изменён|уже существ|не принадлежит|Не заверш|Незаверш/.test(text)) return 'conflict';
@@ -14,6 +15,13 @@ function reason(error) {
 }
 function safeFailures(failures) {
   return failures.map(row => ({ agentId: row.agentId, error: reason(row.message) }));
+}
+function safeCatalogs(catalogs, key) {
+  const safe = id => typeof id === 'string' && id.length <= 512 && !id.includes(key) && !/[\x00-\x1f\x7f]/.test(id);
+  return catalogs?.map(row => ({ agentId: row.agentId,
+    added: row.added.filter(safe), removed: row.removed.filter(safe), changed: row.changed.filter(safe),
+    staleSelections: row.staleSelections.filter(safe), mergedRoutes: row.mergedRoutes.filter(safe),
+    keptRoute: safe(row.keptRoute) ? row.keptRoute : undefined }));
 }
 async function fingerprint(preview, request) {
   const value = request.value ? {
@@ -26,6 +34,7 @@ async function fingerprint(preview, request) {
       ...(Number.isSafeInteger(model.contextWindow) ? { contextWindow: model.contextWindow } : {})
     }),
     protocols: request.value.protocols ?? null,
+    mergeOpenCodeRoutes: request.mergeOpenCodeRoutes === true,
   } : null;
   const operation = request.operation === 'previewRestore' || request.operation === 'restore' ? 'restore' : 'apply';
   const hash = createHash('sha256').update(JSON.stringify({ agentIds: request.agentIds, operation, value }));
@@ -55,13 +64,14 @@ async function run(request) {
     if (protocols != null && (!Array.isArray(protocols) || protocols.some(p => typeof p !== 'string'))) throw new Error('Некорректный формат');
     if (protocols != null && request.agentIds.some(id => id === 'codex' ? !protocols.includes('openai_responses') : id === 'claude' ? !protocols.includes('anthropic_messages') : !protocols.some(p => ['openai_responses', 'openai_chat_completions'].includes(p)))) throw new Error('Некорректный протокол');
   }
-  const preview = restoring ? await previewRestoreAgents(request.agentIds) : await previewAgents(request.agentIds, request.value);
+  const value = restoring ? undefined : { ...request.value, mergeOpenCodeRoutes: request.mergeOpenCodeRoutes === true };
+  const preview = restoring ? await previewRestoreAgents(request.agentIds) : await previewAgents(request.agentIds, value);
   const stamp = await fingerprint(preview, request);
   if (request.operation.startsWith('preview')) {
-    return { ok: true, changes: preview.changes, failures: safeFailures(preview.failures), fingerprint: stamp };
+    return { ok: true, changes: preview.changes, failures: safeFailures(preview.failures), catalogs: safeCatalogs(preview.catalogs, value?.apiKey), fingerprint: stamp };
   }
   if (request.fingerprint !== stamp) return { ok: false, error: 'conflict' };
-  const result = restoring ? await restoreAgents(request.agentIds) : await applyAgents(request.agentIds, request.value);
+  const result = restoring ? await restoreAgents(request.agentIds) : await applyAgents(request.agentIds, value);
   return { ok: true, changes: result.applied ?? result.restored, failures: safeFailures(result.failures) };
 }
 try {

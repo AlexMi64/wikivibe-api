@@ -107,13 +107,22 @@ struct WikiVibeAPIKeysView: View {
             .controlSize(.regular)
             .accessibilityIdentifier("keys.loadModels")
             .disabled(model.isBusy || model.selectedKey?.isUsable != true)
+            if model.effectiveAgents.contains(.opencode) {
+                Toggle(L10n.t("Combine identical WikiVibe routes in OpenCode"), isOn: $model.mergeOpenCodeRoutes)
+                    .toggleStyle(AetherCheckboxStyle())
+                    .disabled(model.isBusy)
+                if model.mergeOpenCodeRoutes {
+                    Text(L10n.t("Review aliases before removal. References in projects or other files are not changed."))
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }
             Button(L10n.t("Preview configuration changes…")) {
                 Task { await model.prepare(auth: auth) }
             }
             .buttonStyle(SettingsButtonStyle(dashboard: true))
             .controlSize(.regular)
             .accessibilityIdentifier("keys.preview")
-            .disabled(!model.canPreview || model.models.isEmpty || WikiVibeAgentService.nodeURL == nil)
+            .disabled(!model.canPreview || WikiVibeAgentService.nodeURL == nil)
             Button(L10n.t("Preview restoring agent backups…")) {
                 Task { await model.prepare(auth: auth, restore: true) }
             }
@@ -143,6 +152,7 @@ struct WikiVibeAPIKeysView: View {
                             Text(L10n.t("After installation succeeds, WikiVibe writes the selected key and models to this agent only. If the installer changes a configuration file, review the updated preview before writing."))
                                 .foregroundStyle(.orange)
                         }
+                        catalogChanges(report)
                         Text(L10n.t("Available models: \(model.models.count)"))
                         DisclosureGroup(L10n.t("View available models")) {
                             VStack(alignment: .leading, spacing: 4) {
@@ -200,6 +210,37 @@ struct WikiVibeAPIKeysView: View {
         .background(AccountControlPalette.panel(colorScheme))
         .presentationBackground(AccountControlPalette.panel(colorScheme))
         .buttonStyle(SettingsButtonStyle(dashboard: true))
+    }
+
+    private func catalogChanges(_ report: WikiVibeAgentReport) -> some View {
+        ForEach(report.catalogs ?? []) { change in
+            VStack(alignment: .leading, spacing: 4) {
+                Text(WikiVibeAgent(rawValue: change.agentId)?.title ?? change.agentId).bold()
+                modelChanges(L10n.t("Added models"), ids: change.added)
+                modelChanges(L10n.t("Removed models"), ids: change.removed)
+                modelChanges(L10n.t("Changed models"), ids: change.changed)
+                if change.added.isEmpty && change.removed.isEmpty && change.changed.isEmpty {
+                    Text(L10n.t("No model changes")).foregroundStyle(.secondary)
+                }
+                if !change.staleSelections.isEmpty {
+                    Text(L10n.t("Some selected models are no longer in this catalog. Review the selections below."))
+                        .foregroundStyle(.orange)
+                    Text(change.staleSelections.joined(separator: ", ")).font(.caption.monospaced())
+                }
+                if let route = change.keptRoute {
+                    Text(L10n.t("OpenCode route to keep: \(route)"))
+                    modelChanges(L10n.t("OpenCode aliases to remove"), ids: change.mergedRoutes)
+                }
+            }
+        }
+    }
+
+    private func modelChanges(_ label: String, ids: [String]) -> some View {
+        DisclosureGroup("\(label): \(ids.count)") {
+            VStack(alignment: .leading, spacing: 4) {
+                ForEach(ids, id: \.self) { Text($0).font(.caption.monospaced()) }
+            }.frame(maxWidth: .infinity, alignment: .leading)
+        }
     }
 
     private func fileRows(_ report: WikiVibeAgentReport) -> some View {

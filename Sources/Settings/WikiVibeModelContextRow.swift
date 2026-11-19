@@ -6,7 +6,7 @@ struct WikiVibeModelContextRow: View {
     @State private var showingDetails = false
     @Environment(\.colorScheme) private var colorScheme
 
-    private var retired: Bool { item.id == "gemini-3.1-flash-lite-preview" }
+    private var retired: Bool { item.displayName == "gemini-3.1-flash-lite-preview" }
     private var options: [Int] {
         [-1] + Set(WikiVibeKeysController.contextWindowOptions.compactMap { $0 })
             .union(contextWindow.map { [$0] } ?? []).sorted()
@@ -58,7 +58,7 @@ struct WikiVibeModelContextRow: View {
         VStack(alignment: .leading, spacing: 10) {
             Text(item.id).font(.caption.monospaced()).textSelection(.enabled)
             if let documented = item.documentedContextWindow {
-                Text(item.id.hasPrefix("gemini-")
+                Text(item.displayName.hasPrefix("gemini-")
                     ? L10n.t("Documented input limit: \(String(documented)) tokens")
                     : L10n.t("Documented provider limit: \(WikiVibeKeysController.contextLabel(documented))"))
             } else {

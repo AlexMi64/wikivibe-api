@@ -1,6 +1,12 @@
 # Changelog
 
 ## 0.1.0 — unreleased
+### Preview 27 — model catalog synchronization
+- Refresh the selected key’s catalog before agent setup. Preview added, removed and changed models against the local agent configurations; failures do not apply a cached catalog.
+- Preserve complete routing IDs, recognize capabilities on prefixed IDs, and respect both key and model protocol restrictions. Explicitly unavailable models are excluded.
+- OpenCode keeps its aliases unless identical routes are explicitly combined and confirmed. Updates remove obsolete WikiVibe-managed allowlist entries and report references to missing selections.
+- The TPS catalog refresh button bypasses the hourly cache. Missing selections are visible in Settings and can be removed without selecting a replacement.
+
 ### Preview 26 — native agent installers and selected-key setup — 2026-11-12
 - Replaced the retired 1.05M context preset with 1.5M and migrated saved 1.05M values to 1M without losing custom budgets.
 - Added Pi, Qwen Code and Droid adapters. Only selected compatible agents receive the selected key and catalog; unselected agents and unrelated providers remain unchanged, with preview, fingerprint and byte-exact restore protection.

@@ -4,7 +4,7 @@ import { promises as fs } from 'node:fs';
 import { createHash } from 'node:crypto';
 import os from 'node:os';
 import path from 'node:path';
-import { applyAgents, restoreAgents } from '../Sources/Resources/AgentSetup/adapters.mjs';
+import { applyAgents, previewAgents, restoreAgents } from '../Sources/Resources/AgentSetup/adapters.mjs';
 import { parseDocument } from '../Sources/Resources/AgentSetup/vendor/yaml/browser/index.js';
 import { parse as parseJSONC } from '../Sources/Resources/AgentSetup/vendor/jsonc-parser/lib/esm/main.js';
 
@@ -392,4 +392,88 @@ test('foreign Pi and Qwen providers are refused and unselected configs stay unto
   assert.deepEqual(result.applied, []);
   assert.equal(await fs.readFile(path.join(home, '.pi/agent/models.json'), 'utf8'), pi);
   assert.equal(await fs.readFile(path.join(home, '.qwen/settings.json'), 'utf8'), qwen);
+});
+
+test('OpenCode consolidation is opt-in, preserves distinct routes, and warns about removed selections', async t => {
+  const home = await homeFor(t);
+  const original = JSON.stringify({ model: 'keep/old', small_model: 'alias/old', provider: {
+    keep: { options: { baseURL: 'https://api.wikivibe.dev/v1' }, models: { old: { name: 'old' } } },
+    alias: { options: { baseURL: 'https://api.wikivibe.dev/v1' }, models: { old: { name: 'old' } } },
+    distinct: { options: { baseURL: 'https://vapi.wikivibe.dev/v1', timeout: 1000 }, models: { old: { name: 'old' } } }
+  } });
+  await put(home, '.config/opencode/opencode.json', original);
+  const input = { ...value, mergeOpenCodeRoutes: true, models: [
+    { id: 'gpt-image-2.6-flare', type: 'image', protocols: ['openai_responses'] },
+    { id: 'chat-only', protocols: ['openai_chat_completions'] }
+  ] };
+  const ordinary = await previewAgents(['opencode'], { ...input, mergeOpenCodeRoutes: false }, { home });
+  assert.deepEqual(ordinary.catalogs[0].mergedRoutes, []);
+  const result = await previewAgents(['opencode'], input, { home });
+  assert.deepEqual(result.failures, []);
+  assert.deepEqual(result.catalogs[0].removed, ['old']);
+  assert.deepEqual(result.catalogs[0].added, ['chat-only', 'gpt-image-2.6-flare']);
+  assert.deepEqual(result.catalogs[0].mergedRoutes, ['alias']);
+  assert.equal(result.catalogs[0].keptRoute, 'keep');
+  assert.deepEqual(result.catalogs[0].staleSelections, ['alias/old', 'keep/old']);
+  assert.equal(await fs.readFile(path.join(home, '.config/opencode/opencode.json'), 'utf8'), original);
+  const applied = await applyAgents(['opencode'], input, { home });
+  assert.deepEqual(applied.failures, []);
+  const config = await readJSON(home, '.config/opencode/opencode.json');
+  assert.deepEqual(Object.keys(config.provider), ['keep', 'distinct']);
+  assert.deepEqual(Object.keys(config.provider.keep.models).sort(), ['chat-only', 'gpt-image-2.6-flare']);
+  assert.equal(config.model, 'keep/old');
+  assert.equal(config.small_model, 'keep/old');
+  assert.equal(config.provider.keep.models['gpt-image-2.6-flare'].modalities.output[0], 'image');
+  await apply(home, ['opencode'], { ...input, mergeOpenCodeRoutes: false });
+  assert.deepEqual(Object.keys((await readJSON(home, '.config/opencode/opencode.json')).provider), ['keep', 'distinct']);
+  assert.deepEqual((await restoreAgents(['opencode'], { home })).failures, []);
+  assert.equal(await fs.readFile(path.join(home, '.config/opencode/opencode.json'), 'utf8'), original);
+});
+
+test('full routing IDs survive capability lookup and per-client protocol filtering', async t => {
+  const home = await homeFor(t);
+  const input = { ...value, protocols: ['openai_responses', 'openai_chat_completions', 'anthropic_messages'], models: [
+    { id: 'cx/gpt-6.1-sol', protocols: ['openai_responses'] },
+    { id: 'cx/gpt-image-2.6-flare', protocols: ['openai_responses'] },
+    { id: 'cx/gpt-chat-only', protocols: ['openai_chat_completions'] },
+    { id: 'fixture/claude-only', protocols: ['anthropic_messages'] },
+    { id: 'fixture/image-only', type: 'image', protocols: ['openai_images_generations'] }
+  ] };
+  await apply(home, ['codex', 'omp', 'claude'], input);
+  const codex = (await readJSON(home, '.codex/wikivibe-models.json')).models;
+  assert.deepEqual(codex.map(m => m.slug), ['cx/gpt-6.1-sol', 'cx/gpt-image-2.6-flare']);
+  assert.deepEqual(codex[0].input_modalities, ['text', 'image']);
+  assert.ok(codex[0].supported_reasoning_levels.some(level => level.effort === 'high'));
+  const omp = parseDocument(await fs.readFile(path.join(home, '.omp/agent/models.yml'), 'utf8')).toJS().providers.wikivibe.models;
+  assert.deepEqual(omp.map(m => [m.id, m.kind, m.api]), [
+    ['cx/gpt-6.1-sol', 'chat', 'openai-responses'],
+    ['cx/gpt-image-2.6-flare', 'image', 'openai-responses'],
+    ['cx/gpt-chat-only', 'chat', 'openai-completions']
+  ]);
+  assert.deepEqual((await readJSON(home, '.claude/settings.json')).modelPicker.options.map(m => m.model), ['fixture/claude-only']);
+});
+
+test('catalog diff and managed allowlists remove obsolete IDs but preserve later user edits', async t => {
+  const home = await homeFor(t);
+  const claude = '.claude/settings.json', omp = '.omp/agent/config.yml';
+  await put(home, claude, '{"availableModels":["user-choice"]}');
+  await put(home, omp, 'enabledModels: ["other/user-choice"]\nmodelRoles:\n  default: wikivibe/old\n');
+  await apply(home, ['claude', 'omp', 'codex'], { ...value, models: [{ id: 'old' }, { id: 'keep' }] });
+  const changed = await readJSON(home, claude);
+  changed.availableModels.push('user-later');
+  await put(home, claude, JSON.stringify(changed));
+  await fs.appendFile(path.join(home, omp), '# user edit\n');
+  const next = { ...value, models: [{ id: 'keep', contextWindow: 250000 }, { id: 'new' }] };
+  const preview = await previewAgents(['claude', 'omp', 'codex'], next, { home });
+  assert.deepEqual(preview.failures, []);
+  const byAgent = Object.fromEntries(preview.catalogs.map(row => [row.agentId, row]));
+  assert.deepEqual(byAgent.omp.removed, ['old']);
+  assert.deepEqual(byAgent.omp.added, ['new']);
+  assert.deepEqual(byAgent.omp.changed, ['keep']);
+  assert.deepEqual(byAgent.omp.staleSelections, ['wikivibe/old']);
+  await apply(home, ['claude', 'omp', 'codex'], next);
+  assert.deepEqual((await readJSON(home, claude)).availableModels, ['user-choice', 'keep', 'user-later', 'new']);
+  const text = await fs.readFile(path.join(home, omp), 'utf8');
+  assert.match(text, /# user edit/);
+  assert.deepEqual(parseDocument(text).toJS().enabledModels, ['other/user-choice', 'wikivibe/keep', 'wikivibe/new']);
 });

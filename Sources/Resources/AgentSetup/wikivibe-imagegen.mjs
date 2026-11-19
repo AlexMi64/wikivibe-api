@@ -118,7 +118,7 @@ async function generate(args) {
   if (!prompt) throw new Error('prompt is required');
   if (prompt.length > 8000) throw new Error('prompt is too long');
   const model = typeof args?.model === 'string' && args.model.trim() ? args.model.trim() : DEFAULT_MODEL;
-  if (!/^[A-Za-z0-9._-]{1,120}$/.test(model)) throw new Error('invalid model id');
+  if (model.length > 256 || !/^[A-Za-z0-9._-]+(?:\/[A-Za-z0-9._-]+)*$/.test(model)) throw new Error('invalid model id');
 
   // Some upstream routes reject an image model unless the hosted tool is
   // declared; declaring it is accepted by every route we observed.

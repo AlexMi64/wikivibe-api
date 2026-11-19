@@ -113,6 +113,27 @@ final class WikiVibePerformanceTests: XCTestCase {
         XCTAssertEqual(store.readings["second"]?.summary?.tokensPerSecond, 40)
     }
 
+    func testManualCatalogRefreshReplacesCachedListAndLetsUserRemoveMissingSelection() async {
+        let api = PerformanceFixture()
+        let suite = "performance-refresh-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = WikiVibePerformanceStore(api: api, defaults: defaults)
+        await store.refresh()
+        await api.replaceFirst()
+        await store.refresh()
+        XCTAssertEqual(store.models.map(\.id), ["first", "second"])
+        await store.refresh(forceCatalog: true)
+        XCTAssertEqual(store.models.map(\.id), ["third", "second"])
+        XCTAssertEqual(store.missingSelectedIDs, ["first"])
+        XCTAssertTrue(store.accountRows.isEmpty)
+        store.setSelected("first", enabled: false)
+        XCTAssertTrue(store.missingSelectedIDs.isEmpty)
+        let reopened = WikiVibePerformanceStore(api: api, defaults: defaults)
+        await reopened.refresh()
+        XCTAssertTrue(reopened.selectedIDs.isEmpty)
+    }
+
     func testOldAndFutureSuccessfulReadingsStayStale() {
         let end = Date(timeIntervalSince1970: 10_000)
         let reading = WikiVibePerformanceReading(model: "first", hours: 24,
@@ -127,11 +148,13 @@ final class WikiVibePerformanceTests: XCTestCase {
 private actor PerformanceFixture: WikiVibePerformanceAPIInterface {
     private var firstFailed = false
     private var catalogFailed = false
+    private var replacedFirst = false
+    func replaceFirst() { replacedFirst = true }
     func failFirst() { firstFailed = true }
     func failCatalog() { catalogFailed = true }
     func models() async throws -> [WikiVibePerformanceModel] {
         if catalogFailed { throw URLError(.notConnectedToInternet) }
-        return [.init(id: "first", displayName: "First"), .init(id: "second", displayName: "Second")]
+        return [.init(id: replacedFirst ? "third" : "first", displayName: replacedFirst ? "Third" : "First"), .init(id: "second", displayName: "Second")]
     }
     func performance(modelID: String) async throws -> WikiVibePerformanceReading {
         if firstFailed && modelID == "first" { throw URLError(.timedOut) }

@@ -387,7 +387,7 @@ struct WikiVibeAccountView: View {
             HStack {
                 Text(L10n.t("Model speed in hover card")).font(.subheadline.bold())
                 Spacer()
-                Button(L10n.t("Refresh")) { Task { await performance.refresh() } }
+                Button(L10n.t("Refresh")) { Task { await performance.refresh(forceCatalog: true) } }
                     .buttonStyle(SettingsButtonStyle(dashboard: true))
                     .controlSize(.small)
                     .disabled(performance.isRefreshing)
@@ -419,6 +419,17 @@ struct WikiVibeAccountView: View {
                             }
                         }
                     }
+                }
+            }
+            ForEach(performance.missingSelectedIDs, id: \.self) { id in
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(id).font(.caption.monospaced())
+                        Text(L10n.t("No longer in the public model catalog")).font(.caption).foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Button(L10n.t("Remove from widget")) { performance.setSelected(id, enabled: false) }
+                        .buttonStyle(SettingsButtonStyle(dashboard: true))
                 }
             }
         }

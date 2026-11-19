@@ -20,6 +20,7 @@ struct WikiVibeAgentRequest: Encodable, CustomStringConvertible {
     let agentIds: [String]
     let value: Value?
     var fingerprint: String?
+    var mergeOpenCodeRoutes = false
     var description: String { "WikiVibeAgentRequest(operation: \(operation), credentials: redacted)" }
 }
 
@@ -40,10 +41,21 @@ struct WikiVibeAgentReport: Decodable, Identifiable {
         var id: String { agentId }
         var message: String { WikiVibeAgentService.error(error).localizedDescription }
     }
+    struct CatalogChange: Decodable, Identifiable {
+        let agentId: String
+        let added: [String]
+        let removed: [String]
+        let changed: [String]
+        let staleSelections: [String]
+        let mergedRoutes: [String]
+        let keptRoute: String?
+        var id: String { agentId }
+    }
     let ok: Bool
     let error: String?
     let changes: [Change]?
     let failures: [Failure]?
+    let catalogs: [CatalogChange]?
     let fingerprint: String?
     var id: String { fingerprint ?? "result" }
 }
@@ -66,6 +78,7 @@ struct WikiVibeAgentService {
     static func error(_ code: String) -> WikiVibeKeysError {
         switch code {
         case "nodeMissing": return .nodeMissing
+        case "noCompatibleModels": return .noCompatibleModels
         case "conflict": return .conflict
         case "invalidConfiguration": return .invalidConfiguration
         case "unsafePath": return .unsafePath
@@ -148,9 +161,13 @@ final class WikiVibeKeysController: ObservableObject {
     @Published private(set) var installationAgent: WikiVibeAgent?
     @Published private(set) var installationMessage: String?
     @Published private(set) var installedAgents: Set<WikiVibeAgent> = []
+    @Published var mergeOpenCodeRoutes = false {
+        didSet { cancelPreview() }
+    }
     @Published var selectedKeyID: Int? {
         didSet {
             invalidatePreview()
+            mergeOpenCodeRoutes = false
             if let ownerID { defaults.set(selectedKeyID, forKey: "apiKeys.selectedKey.\(ownerID)") }
             contextWindows = loadContextWindows()
         }
@@ -158,6 +175,7 @@ final class WikiVibeKeysController: ObservableObject {
     @Published var gateway: WikiVibeGateway {
         didSet {
             defaults.set(gateway.rawValue, forKey: "apiKeys.gateway")
+            mergeOpenCodeRoutes = false
             invalidatePreview()
             contextWindows = loadContextWindows()
         }
@@ -247,6 +265,7 @@ final class WikiVibeKeysController: ObservableObject {
     }
     func prepare(auth: WikiVibeAuthCoordinator, restore: Bool = false, installing agent: WikiVibeAgent? = nil) async {
         guard !isBusy, auth.account?.id == ownerID else { return }
+        cancelPreview()
         let requestID = generation
         isBusy = true; error = nil; result = nil; isRestoring = restore
         installationAgent = agent; installationMessage = nil
@@ -260,17 +279,18 @@ final class WikiVibeKeysController: ObservableObject {
                 let targets = agent.map { [$0] } ?? effectiveAgents
                 guard let key = selectedKey, key.isUsable, let secret = key.key, !targets.isEmpty,
                       targets.allSatisfy({ $0.supports(key.protocols) }) else { throw WikiVibeKeysError.unusableKey }
-                let catalog = models.isEmpty ? try await api.models(gateway: gateway, key: secret) : models
+                let catalog = try await api.models(gateway: gateway, key: secret)
                 try Task.checkCancellation()
                 guard generation == requestID, auth.account?.id == ownerID else { return }
                 models = catalog; chosen = targets
                 value = .init(apiKey: secret, baseUrl: gateway.rawValue, models: catalog.map { .init(id: $0.id, type: $0.type, protocols: $0.protocols, contextWindow: contextWindows[$0.id]) }, protocols: key.protocols)
             }
             guard !chosen.isEmpty else { throw WikiVibeKeysError.unusableKey }
-            let request = WikiVibeAgentRequest(operation: restore ? "previewRestore" : "preview", agentIds: chosen.map(\.rawValue), value: value)
+            var request = WikiVibeAgentRequest(operation: restore ? "previewRestore" : "preview", agentIds: chosen.map(\.rawValue), value: value)
+            request.mergeOpenCodeRoutes = !restore && chosen.contains(.opencode) && mergeOpenCodeRoutes
             let report = try await service.run(request)
             guard generation == requestID, auth.account?.id == ownerID else { return }
-            if agent != nil, report.failures?.isEmpty == false { throw WikiVibeKeysError.conflict }
+            if agent != nil, let failure = report.failures?.first { throw WikiVibeAgentService.error(failure.error) }
             pending = request; preview = report
         } catch is CancellationError { }
         catch { if generation == requestID { self.error = safeMessage(error) } }

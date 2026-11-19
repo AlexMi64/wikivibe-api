@@ -55,6 +55,8 @@ struct WikiVibePerformanceAPI: WikiVibePerformanceAPIInterface {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.httpCookieStorage = nil
         configuration.urlCredentialStorage = nil
+        configuration.urlCache = nil
+        configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
         configuration.timeoutIntervalForRequest = 15
         configuration.timeoutIntervalForResource = 20
         self.session = URLSession(configuration: configuration, delegate: NoRedirects(), delegateQueue: nil)
@@ -131,12 +133,19 @@ final class WikiVibePerformanceStore: ObservableObject {
         self.api = api
         self.defaults = defaults
         self.now = now
-        selectedIDs = defaults.stringArray(forKey: Self.selectionKey) ?? []
+        var seen = Set<String>()
+        selectedIDs = (defaults.stringArray(forKey: Self.selectionKey) ?? []).filter { seen.insert($0).inserted }
+    }
+
+    var missingSelectedIDs: [String] {
+        guard catalogLoadedAt != nil, !catalogFailed else { return [] }
+        let current = Set(models.map(\.id))
+        return selectedIDs.filter { !current.contains($0) }
     }
 
     func setSelected(_ id: String, enabled: Bool) {
-        guard models.contains(where: { $0.id == id }) else { return }
         if enabled {
+            guard models.contains(where: { $0.id == id }) else { return }
             if !selectedIDs.contains(id) { selectedIDs.append(id) }
         } else {
             selectedIDs.removeAll { $0 == id }
@@ -156,12 +165,12 @@ final class WikiVibePerformanceStore: ObservableObject {
 
     func stop() { polling?.cancel(); polling = nil }
 
-    func refresh() async {
+    func refresh(forceCatalog: Bool = false) async {
         guard !isRefreshing else { return }
         isRefreshing = true
         defer { isRefreshing = false }
-        if catalogLoadedAt.map({ now().timeIntervalSince($0) >= 3600 }) ?? true,
-           catalogAttemptedAt.map({ now().timeIntervalSince($0) >= 60 }) ?? true {
+        if forceCatalog || ((catalogLoadedAt.map({ now().timeIntervalSince($0) >= 3600 }) ?? true)
+            && (catalogAttemptedAt.map({ now().timeIntervalSince($0) >= 60 }) ?? true)) {
             catalogAttemptedAt = now()
             do {
                 let catalog = try await api.models()
