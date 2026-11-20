@@ -1,8 +1,14 @@
 {
   "images" : [
     {
-      "filename" : "menubar-codenotch.svg",
-      "idiom" : "universal"
+      "filename" : "menubar-wikivibe@1x.png",
+      "idiom" : "universal",
+      "scale" : "1x"
+    },
+    {
+      "filename" : "menubar-wikivibe@2x.png",
+      "idiom" : "universal",
+      "scale" : "2x"
     }
   ],
   "info" : {
@@ -10,7 +16,6 @@
     "version" : 1
   },
   "properties" : {
-    "preserves-vector-representation" : true,
     "template-rendering-intent" : "template"
   }
 }

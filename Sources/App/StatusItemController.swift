@@ -373,16 +373,10 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         ).target = self
     }
 
-    /// The menu bar mark: its own drawing, not the app icon shrunk down.
+    /// The menu bar uses the WikiVibe mark without the app icon's background.
     ///
     /// A template image, which is what lets macOS tint it — dark on a light
-    /// menu bar, light on a dark one, and correct against a wallpaper-tinted
-    /// bar without the app knowing any of that. The full-colour app icon can do
-    /// none of it: it would fight every system item beside it and ignore the
-    /// user's appearance entirely.
-    ///
-    /// Vector, so it is drawn at whatever the bar asks for rather than scaled
-    /// from a fixed bitmap.
+    /// menu bar, light on a dark one, and correct against a wallpaper-tinted bar.
     static func icon() -> NSImage? {
         guard let image = NSImage(named: "MenuBarIcon") else { return nil }
         // Menu bar items are laid out on an 18pt square; taller and macOS

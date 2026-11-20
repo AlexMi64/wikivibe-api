@@ -1,6 +1,9 @@
 # Changelog
 
 ## 0.1.0 — unreleased
+### Preview 28 — refreshed WikiVibe logo
+- Updated the macOS app icon and menu bar mark from the new WikiVibe logo. The menu bar mark adapts to light and dark appearances.
+
 ### Preview 27 — model catalog synchronization
 - Refresh the selected key’s catalog before agent setup. Preview added, removed and changed models against the local agent configurations; failures do not apply a cached catalog.
 - Preserve complete routing IDs, recognize capabilities on prefixed IDs, and respect both key and model protocol restrictions. Explicitly unavailable models are excluded.
