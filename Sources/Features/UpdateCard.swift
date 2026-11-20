@@ -108,10 +108,7 @@ struct UpdateCard: View {
                 .frame(width: Self.cardWidth, height: Self.cardHeight)
 
             HStack(alignment: .center, spacing: Design.px(30)) {
-                Image(nsImage: NSApp.applicationIconImage)
-                    .resizable()
-                    .interpolation(.high)
-                    .frame(width: Self.icon, height: Self.icon)
+                WikiVibeLogo(size: Self.icon)
 
                 VStack(alignment: .leading, spacing: 0) {
                     Text(title)

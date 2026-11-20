@@ -29,13 +29,12 @@ struct AccountWindowLayout: Codable, Equatable {
     }
 
     enum Card: String, Codable, CaseIterable, Identifiable {
-        case account, balance, appearance, apiKeys
+        case account, balance, apiKeys
         var id: String { rawValue }
         var title: String {
             switch self {
             case .account: return L10n.t("Account")
             case .balance: return L10n.t("Balance")
-            case .appearance: return L10n.t("Widget and language")
             case .apiKeys: return L10n.t("API keys")
             }
         }
@@ -43,7 +42,6 @@ struct AccountWindowLayout: Codable, Equatable {
             switch self {
             case .account: return "person.crop.circle"
             case .balance: return "creditcard"
-            case .appearance: return "slider.horizontal.3"
             case .apiKeys: return "key.horizontal"
             }
         }
@@ -53,6 +51,20 @@ struct AccountWindowLayout: Codable, Equatable {
     var density: Density = .comfortable
     private var order: [Card] = Card.allCases
     private var hidden: Set<Card> = []
+
+    private enum CodingKeys: String, CodingKey { case arrangement, density, order, hidden }
+
+    init() {}
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        arrangement = try values.decode(Arrangement.self, forKey: .arrangement)
+        density = try values.decode(Density.self, forKey: .density)
+        // Older builds stored "appearance" in both lists. Retire that card
+        // without discarding the saved order or visibility of the others.
+        order = try values.decode([String].self, forKey: .order).compactMap(Card.init(rawValue:))
+        hidden = try Set(values.decode([String].self, forKey: .hidden).compactMap(Card.init(rawValue:)))
+    }
 
     /// A saved order must never create duplicate SwiftUI identities or lose a
     /// newly introduced card. Hidden cards keep their place when shown again.

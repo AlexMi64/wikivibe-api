@@ -171,3 +171,17 @@ struct ProviderGlyphView: View {
         .frame(width: size, height: size)
     }
 }
+
+/// The favicon artwork shared by the app's headers and update cards.
+struct WikiVibeLogo: View {
+    let size: CGFloat
+
+    var body: some View {
+        Image(ProviderGlyph.wikivibe.assetName)
+            .resizable()
+            .interpolation(.high)
+            .scaledToFit()
+            .frame(width: size, height: size)
+            .accessibilityHidden(true)
+    }
+}

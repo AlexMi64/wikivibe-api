@@ -1,6 +1,10 @@
 # Changelog
 
 ## 0.1.0 — unreleased
+### Preview 29 — window settings and consistent branding
+- Moved widget and language settings, including model speed controls, to **Customize window**. Existing card order and visibility are preserved.
+- Used the new WikiVibe favicon in the account header, widget, settings and update views. The macOS menu bar keeps its tintable mark.
+
 ### Preview 28 — refreshed WikiVibe logo
 - Updated the macOS app icon and menu bar mark from the new WikiVibe logo. The menu bar mark adapts to light and dark appearances.
 

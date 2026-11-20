@@ -346,7 +346,8 @@ struct StatusItemArtwork {
             let rect = glyphBox.insetBy(dx: inset, dy: inset)
             // The same preference as the notch: a bundled asset over the trace,
             // fitted rather than stretched, since not every mark is square.
-            if let asset = NSImage(named: glyph.assetName), asset.size.width > 0, asset.size.height > 0 {
+            let assetName = glyph == .wikivibe ? "MenuBarIcon" : glyph.assetName
+            if let asset = NSImage(named: assetName), asset.size.width > 0, asset.size.height > 0 {
                 let scale = min(rect.width / asset.size.width, rect.height / asset.size.height)
                 let fitted = NSSize(width: asset.size.width * scale, height: asset.size.height * scale)
                 asset.draw(in: NSRect(x: rect.midX - fitted.width / 2, y: rect.midY - fitted.height / 2,

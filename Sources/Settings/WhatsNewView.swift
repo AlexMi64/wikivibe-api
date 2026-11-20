@@ -29,13 +29,8 @@ struct WhatsNewView: View {
 
     private var header: some View {
         VStack(spacing: 6) {
-            if let icon = NSImage(named: "AppIcon") ?? NSApp.applicationIconImage {
-                Image(nsImage: icon)
-                    .resizable()
-                    .frame(width: 60, height: 60)
-                    .padding(.bottom, 8)
-            }
-            Text(L10n.t("What's new in Codenotch"))
+            WikiVibeLogo(size: 60).padding(.bottom, 8)
+            Text(L10n.t("What's new in WikiVibe"))
                 .font(.system(size: 19, weight: .semibold))
                 .multilineTextAlignment(.center)
             Text(L10n.t("Version \(note.version)"))

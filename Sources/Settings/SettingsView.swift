@@ -580,11 +580,8 @@ struct SettingsView: View {
             Color.clear.frame(height: SettingsView.headerHeight)
 
             HStack(spacing: 10) {
-                Image(nsImage: NSApp.applicationIconImage)
-                    .resizable()
-                    .interpolation(.high)
-                    .frame(width: 22, height: 22)
-                Text("Codenotch")
+                WikiVibeLogo(size: 22)
+                Text("WikiVibe")
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(.white)
             }

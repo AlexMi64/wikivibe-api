@@ -47,7 +47,6 @@ private enum AccountDashboardStyle {
         switch section {
         case .card(.account): return .green
         case .card(.balance): return .blue
-        case .card(.appearance): return .orange
         case .card(.apiKeys): return .purple
         case .models: return .cyan
         }
@@ -136,16 +135,7 @@ struct WikiVibeAccountView: View {
 
     private func header(compact: Bool) -> some View {
         HStack(spacing: 14) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(
-                        LinearGradient(colors: [.blue.opacity(0.9), .purple.opacity(0.85)],
-                                       startPoint: .topLeading, endPoint: .bottomTrailing)
-                    )
-                Image("glyph-wikivibe")
-                    .resizable().scaledToFit().padding(7)
-            }
-            .frame(width: 42, height: 42)
+            WikiVibeLogo(size: 42)
             VStack(alignment: .leading, spacing: 2) {
                 Text("WikiVibe").font(.title2.bold())
                 Text(L10n.t("Account")).font(.callout).foregroundStyle(.secondary)
@@ -196,7 +186,6 @@ struct WikiVibeAccountView: View {
             switch section {
             case .card(.account): accountSection
             case .card(.balance): walletSection
-            case .card(.appearance): appearanceControls
             case .card(.apiKeys): WikiVibeAPIKeysView(auth: auth, model: keys)
             case .models: WikiVibeModelContextsView(model: keys)
             }
@@ -359,8 +348,7 @@ struct WikiVibeAccountView: View {
         .accessibilityLabel(L10n.t("Open the website"))
     }
 
-    @ViewBuilder
-    private var appearanceControls: some View {
+    private var widgetControls: some View {
         Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 12) {
             formRow(L10n.t("Language")) {
                 AetherSelectionMenu(L10n.t("Language"), selection: $preferences.language,
@@ -369,23 +357,22 @@ struct WikiVibeAccountView: View {
             }
             formRow(L10n.t("Screen edge")) {
                 AetherSelectionMenu(L10n.t("Screen edge"), selection: $preferences.notchEdge,
-                                    options: NotchEdge.allCases, accent: .blue,
-                                    title: \.title)
+                                    options: NotchEdge.allCases, accent: .blue, title: \.title)
             }
             formRow(L10n.t("Size")) {
                 AetherSelectionMenu(L10n.t("Size"), selection: $preferences.notchSize,
-                                    options: NotchSize.allCases, accent: .blue,
-                                    title: \.title)
+                                    options: NotchSize.allCases, accent: .blue, title: \.title)
             }
             formRow(L10n.t("Visibility")) {
                 AetherSelectionMenu(L10n.t("Visibility"), selection: $preferences.notchVisibility,
-                                    options: NotchVisibility.allCases, accent: .blue,
-                                    title: \.title)
+                                    options: NotchVisibility.allCases, accent: .blue, title: \.title)
             }
         }
+    }
+
+    private var performanceControls: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text(L10n.t("Model speed in hover card")).font(.subheadline.bold())
                 Spacer()
                 Button(L10n.t("Refresh")) { Task { await performance.refresh(forceCatalog: true) } }
                     .buttonStyle(SettingsButtonStyle(dashboard: true))
@@ -433,7 +420,6 @@ struct WikiVibeAccountView: View {
                 }
             }
         }
-        .padding(.top, 12)
     }
 
     private func formRow<Control: View>(_ title: String, @ViewBuilder control: () -> Control) -> some View {
@@ -457,6 +443,34 @@ struct WikiVibeAccountView: View {
                     .tint(.blue)
                     .controlSize(.small)
             }
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    Label(L10n.t("Widget and language"), systemImage: "slider.horizontal.3")
+                        .font(.subheadline.bold())
+                    widgetControls
+                    DisclosureGroup(L10n.t("Model speed in hover card")) {
+                        performanceControls.padding(.top, 8)
+                    }
+                    Divider()
+                    cardLayoutControls
+                }
+                .padding(.vertical, 2)
+            }
+            .scrollBounceBehavior(.basedOnSize)
+            .defaultScrollAnchor(.top)
+            .frame(maxHeight: 460)
+        }
+        .padding(20)
+        .frame(width: 400)
+        .foregroundStyle(.primary)
+        .background(AccountControlPalette.panel(colorScheme))
+        .presentationBackground(AccountControlPalette.panel(colorScheme))
+        .buttonStyle(SettingsButtonStyle(compact: true, dashboard: true))
+        .id(preferences.language)
+    }
+
+    private var cardLayoutControls: some View {
+        VStack(alignment: .leading, spacing: 12) {
             Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 12) {
                 formRow(L10n.t("Card layout")) {
                     AetherSelectionMenu(L10n.t("Card layout"), selection: $preferences.accountWindowLayout.arrangement,
@@ -498,12 +512,5 @@ struct WikiVibeAccountView: View {
                 }
             }
         }
-        .padding(20)
-        .frame(width: 400)
-        .foregroundStyle(.primary)
-        .background(AccountControlPalette.panel(colorScheme))
-        .presentationBackground(AccountControlPalette.panel(colorScheme))
-        .buttonStyle(SettingsButtonStyle(compact: true, dashboard: true))
-        .id(preferences.language)
     }
 }
